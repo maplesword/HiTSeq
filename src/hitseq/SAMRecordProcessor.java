@@ -87,7 +87,7 @@ public class SAMRecordProcessor {
 
             boolean overlap=false;
             while(! overlap && currentExonIndex!=-1 && indexAlignmentBlock < hits.size()){
-                int currentExonStart=annotation.getExonStart(gene, currentExonIndex+additionalIndexExon);
+                int currentExonStart=annotation.getNonRedundantExonStart(gene, currentExonIndex+additionalIndexExon);
                 int currentExonEnd=annotation.getExonEnd(gene, currentExonIndex+additionalIndexExon);
                 int currentAlignmentBlockStart=hits.get(indexAlignmentBlock).getReferenceStart();
                 int currentAlignmentBlockEnd=hits.get(indexAlignmentBlock).getReferenceStart()+hits.get(indexAlignmentBlock).getLength()-1;
