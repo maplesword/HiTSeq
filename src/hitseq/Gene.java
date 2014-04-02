@@ -6,6 +6,7 @@ package hitseq;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
         
 /**
  *
@@ -20,7 +21,7 @@ public class Gene {
     private HashMap<String, Transcript> transcripts;
     private Transcript nonredundantTranscript;
     private ArrayList<Exon> segments;
-    private ArrayList<Junction> junctions;
+    private HashSet<Junction> junctions;
     
     
     Gene(String id, String chrom, String strand, int start, int end){
@@ -32,7 +33,7 @@ public class Gene {
         this.transcripts=new HashMap<>();
         this.nonredundantTranscript=new Transcript("Structure", chrom, strand);
         this.segments=new ArrayList<>();
-        this.junctions=new ArrayList<>();
+        this.junctions=new HashSet<>();
     }
     
     Gene(String id, String chrom, String strand){
@@ -56,6 +57,8 @@ public class Gene {
     void generateAllJunctions(){
         for(Transcript transcript : transcripts.values())
             junctions.addAll(transcript.getJunctions());
+        for(Junction junc : junctions)
+            junc.addAnnotatedGene(this);
     }
     
     void generateSegments(){
@@ -97,7 +100,7 @@ public class Gene {
         return(nonredundantTranscript);
     }
     
-    ArrayList<Junction> getAllJunctions(){
+    HashSet<Junction> getAllJunctions(){
         return(junctions);
     }
     

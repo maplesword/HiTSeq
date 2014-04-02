@@ -293,6 +293,17 @@ public class HiTSeq {
             Annotation annotation=new Annotation(new File(args[1]));
             annotation.estimateExclusiveGeneLength(true);
         }
+        
+        else if(cmd.equalsIgnoreCase("junctest")){
+            String inputType=args[1];
+            
+            JunctionSet junctions=new JunctionSet();
+            for(int i=2; i<args.length; i++){
+                String pathBed=args[i];
+                junctions.addJunctionSet(new File(pathBed), inputType);
+            }
+            junctions.outputInJunc(true);
+        }
     }
 }
 

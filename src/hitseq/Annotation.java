@@ -8,7 +8,7 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -345,6 +345,13 @@ public class Annotation {
             return null;
     }
     
+    Gene getGene(String geneID){
+        if(allGenes.containsKey(geneID))
+            return(allGenes.get(geneID));
+        else
+            return null;
+    }
+    
     String getGeneStrand(String gene){
         if(allGenes.containsKey(gene))
             return allGenes.get(gene).getStrand();
@@ -403,7 +410,7 @@ public class Annotation {
         return -1;
     }
     
-    int getExonEnd(String geneID, int index){
+    int getNonRedundantExonEnd(String geneID, int index){
         if(allGenes.containsKey(geneID)){
             Gene gene=allGenes.get(geneID);
             if(index < gene.getNonredundantTranscript().getExons().size() && index >=0)
@@ -477,5 +484,33 @@ public class Annotation {
     
     void estimateExclusiveGeneLength(){
         estimateExclusiveGeneLength(false);
+    }
+    
+    HashMap<String,HashSet<Junction>> getAllJunctionsInChrom(){
+        HashMap<String,HashSet<Junction>> junctions=new HashMap<>();
+        for(String chrom : genesInChrom.keySet()){
+            junctions.put(chrom, new HashSet<Junction>());
+            for(String geneID : genesInChrom.get(chrom)){
+                Gene gene=allGenes.get(geneID);
+                gene.generateAllJunctions();
+                
+                ArrayList<Junction> junctionSetGene=new ArrayList<>();
+                junctionSetGene.addAll(gene.getAllJunctions());
+                for(Junction junc : junctionSetGene){
+                    if(junctions.get(chrom).contains(junc)){
+                        for(Junction juncExisted : junctions.get(chrom))
+                            if(juncExisted.equals(junc)){
+                                juncExisted.addAnnotatedGeneSet(junc.getAnnotatedGenes());
+                                juncExisted.addAnnotatedTranscriptSet(junc.getAnnotatedTranscripts());
+                                gene.getAllJunctions().remove(junc);
+                                gene.getAllJunctions().add(juncExisted);
+                            }
+                    } else
+                        junctions.get(chrom).add(junc);
+                }
+            }
+            System.err.println("Chromosome "+chrom+": "+junctions.get(chrom).size()+" junctions");
+        }
+        return(junctions);
     }
 }
