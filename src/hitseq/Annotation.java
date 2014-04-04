@@ -44,6 +44,10 @@ public class Annotation {
         resetPointer();
     }
     
+    /**
+     * FunName: resetAnnotation.
+     * Description: Empty the annotation set.
+     */
     final void resetAnnotation(){
         genesInChrom=new HashMap<>();
         allGenes=new HashMap<>();
@@ -52,6 +56,10 @@ public class Annotation {
         exclusiveLengthOfGeneNoStrand=new HashMap<>();
     }
     
+    /**
+     * FunName: resetPointer.
+     * Description: Set all gene pointers at chromosomes as well as all exon pointers at genes to 0.
+     */
     final void resetPointer(){
         pointerOfChrom=new HashMap<>();
         pointerOfGene=new HashMap<>();
@@ -64,6 +72,12 @@ public class Annotation {
             }
     }
     
+    /**
+     * FunName: addAdditionalAnnotations.
+     * Description: Add additional gene/transcript/exon information in the given annotation file to the annotation set.
+     * @param file The File object of the new annotation file.
+     * @param fileType The file type of the given file. Should be one of "struc", "gtf" and "bed" (only for BED8).
+     */
     final void addAdditionalAnnotations(File file, String fileType){
         try{
             RandomAccessFile fileIn=new RandomAccessFile(file,"r");
@@ -254,6 +268,10 @@ public class Annotation {
         }
     }
     
+    /**
+     * FunName: outputInStruc.
+     * Description: Output the annotation set to STOUT in struc format.
+     */
     void outputInStruc(){
         // Fields: geneID, chrom, strand, exonLength, exonStructure
         for(String chr : genesInChrom.keySet()){
@@ -279,6 +297,11 @@ public class Annotation {
         }
     }
     
+    /**
+     * FunName: outputInStruc.
+     * Description: Output the annotation set to the given file in struc format.
+     * @param file The File object for output.
+     */
     void outputInStruc(File file){
         try{
             RandomAccessFile fileOut=new RandomAccessFile(file,"w");
@@ -308,6 +331,12 @@ public class Annotation {
         }
     }
     
+    /**
+     * FunName: chromIsExisted.
+     * Description: Check whether the given chromosome existed in the current annotation set.
+     * @param chrom Name of the chromosome.
+     * @return true if the chromosome exists.
+     */
     boolean chromIsExisted(String chrom){
         return genesInChrom.containsKey(chrom);
     }
@@ -432,6 +461,11 @@ public class Annotation {
         return pointerOfGene.get(allGenes.get(gene));
     }
     
+    /**
+     * FunName: estimateExclusiveGeneLength.
+     * Description: Detect overlap among genes to calculate the exclusive exon length of every gene for both consider or not the strand.
+     * @param outputPairs if true, output the gene pairs with overlapping regions (even on different strands).
+     */
     void estimateExclusiveGeneLength(boolean outputPairs){
         for(Gene gene : lengthOfGene.keySet()){
             exclusiveLengthOfGene.put(gene, lengthOfGene.get(gene));
@@ -482,10 +516,20 @@ public class Annotation {
         }
     }
     
+    /**
+     * FunName: estimateExclusiveGeneLength.
+     * Description: Detect overlap among genes to calculate the exclusive exon length of every gene for both consider or not the strand.
+     * Here, the overlapping pairs will not be output.
+     */
     void estimateExclusiveGeneLength(){
         estimateExclusiveGeneLength(false);
     }
     
+    /**
+     * FunName: getAllJunctionsInChrom.
+     * Description: Get all the possible junctions based on the current annotation set, and organize junctions at the same chromosome into a HashSet.
+     * @return The junctions annotated by the current annotation set, organized by chromosomes.
+     */
     HashMap<String,HashSet<Junction>> getAllJunctionsInChrom(){
         HashMap<String,HashSet<Junction>> junctions=new HashMap<>();
         for(String chrom : genesInChrom.keySet()){

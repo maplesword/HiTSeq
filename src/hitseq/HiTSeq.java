@@ -36,7 +36,9 @@ public class HiTSeq {
                     + "           count      Given annotation in struc/gtf/bed format, output table of read count of each gene for the input alignments\n"
                     + "           rpkm       Given annotation in struc/gtf/bed format, output table of RPKM of each gene for the input alignment\n"
                     + "           uniq       Extract uniquely mapped reads from the input alignment\n"
-                    + "           gtf2struc  Transform GTF annotation into struc format\n");
+                    + "           gtf2struc  Transform GTF annotation into struc format\n"
+                    + "           tojuncs    Combine and transform junction list(s) into a junction list in 'juncs' format\n"
+                    + "           countjunc  Given junction list in junc/bed/gtf format, output table of read count of each junction for the input alignments\n");
             System.exit(0);
         }
         
@@ -63,8 +65,8 @@ public class HiTSeq {
         else if(cmd.equalsIgnoreCase("count") || cmd.equalsIgnoreCase("rpkm")){
             if(args.length==1 || args[1].equals("-h")){
                 System.err.println("\nThis is the help of '"+cmd.toLowerCase()+"' command of HiTSeq.");
-                System.err.println("Usage: java -jar HiTSeq.jar count [options] <annotation.struc> <in.bam> [in2.bam ...]\n"
-                        + "   Or: HiTSeq.sh rpkm [options] <annotation.struc> <in.bam> [in2.bam ...]");
+                System.err.println("Usage: java -jar HiTSeq.jar "+cmd.toLowerCase()+" [options] <annotation.struc> <in.bam> [in2.bam ...]\n"
+                        + "   Or: HiTSeq.sh "+cmd.toLowerCase()+" [options] <annotation.struc> <in.bam> [in2.bam ...]");
                 System.err.println("\n"
                         + "Options: -h        This help page\n"
                         + "         -s [int]  Strandedness (default: 0 - no strand information; 1 - same strandness; -1 - opposite strandness)\n"
@@ -288,13 +290,218 @@ public class HiTSeq {
             Annotation annotation=new Annotation(new File(pathAnnotation), "gtf");
             annotation.outputInStruc();
         }
+        else if(cmd.equalsIgnoreCase("tojuncs")){
+            if(args.length==1 || args[1].equals("-h")){
+                System.err.println("\nThis is the help of 'tojuncs' command of HiTSeq.");
+                System.err.println("Usage: java -jar HiTSeq.jar tojuncs [options] <in.file> [in2.file ...]\n"
+                        + "   Or: HiTSeq.sh tojunc [options] <in.file> [in2.file ...]");
+                System.err.println("\n"
+                        + "Options: -h        This help page\n"
+                        + "         -a [str]  The file type of junction annotation file (default: juncs format)\n"
+                        + "         -s [int]  Strandedness of BAM/SAM input (default: 0 [no strand information]; 1/-1 [same/opposite strandness]; only work with '-a bam')\n");
+                System.exit(0);
+            }
+            
+            String fileType="juncs";
+            int strandSpecific=0;
+            int firstInputIndex=1;
+            while(true){
+                java.util.regex.Pattern pattern=java.util.regex.Pattern.compile("^-");
+                java.util.regex.Matcher matcher=pattern.matcher(args[firstInputIndex]);
+                if(matcher.find()){
+                    String optionsString=matcher.replaceAll("");
+                    for(int i=0; i<optionsString.length(); i++){
+                        String option=optionsString.substring(i, i+1);
+                        switch (option) {
+                            case "s":
+                                int idx=optionsString.indexOf("s");
+                                if(idx<optionsString.length()-1){
+                                    System.err.println("\nParameter error. The strandness needs to be given.\n");
+                                    System.exit(0);
+                                }
+                                firstInputIndex++;
+                                try{
+                                   strandSpecific=Integer.parseInt(args[firstInputIndex]);
+                                   if(strandSpecific>1 || strandSpecific<-1){
+                                       System.err.println("\nParameter error. The strandness should be int {-1,0,1}.\n");
+                                       System.exit(0);
+                                   }
+                                } catch(java.lang.NumberFormatException e){
+                                   System.err.println("\nParameter error. The strandness should be int {-1,0,1}.\n");
+                                   System.exit(0);
+                                }
+                                break;
+                            case "a":
+                                idx=optionsString.indexOf("a");
+                                if(idx<optionsString.length()-1){
+                                    System.err.println("\nParameter error. The annotation file type needs to be given.\n");
+                                    System.exit(0);
+                                }
+                                firstInputIndex++;
+                                fileType=args[firstInputIndex];
+                                if((!fileType.equalsIgnoreCase("gtf")) && (!fileType.equalsIgnoreCase("bed")) && (!fileType.equalsIgnoreCase("juncs"))){
+                                    System.err.println("\nParameter error. The mode should be one of \"juncs\", \"gtf\" and \"bed\".\n");
+                                    System.exit(0);
+                                }
+                                break;
+                            default:
+                                System.err.println("\nParameter error. No parameter "+option+"\n");
+                                break;
+                        }
+                        System.err.println("option added: '"+option+"'");
+                    }
+                    firstInputIndex++;
+                }
+                else
+                    break;
+            }
+            
+            JunctionSet junctions=new JunctionSet();
+            for(int i=firstInputIndex; i<args.length; i++){
+                String pathBed=args[i];
+                if(fileType.equalsIgnoreCase("bam"))
+                    junctions.addJunctionSet(new File(pathBed), strandSpecific);
+                else
+                    junctions.addJunctionSet(new File(pathBed), fileType);
+            }
+            junctions.outputInJuncs(true); 
+        }
+        else if(cmd.equalsIgnoreCase("countjunc")){
+            if(args.length==1 || args[1].equals("-h")){
+                System.err.println("\nThis is the help of 'countjunc' command of HiTSeq.");
+                System.err.println("Usage: java -jar HiTSeq.jar countjunc [options] <junc.file> <in.bam> [in2.bam ...]\n"
+                        + "   Or: HiTSeq.sh countjunc [options] <junc.file> <in.bam> [in2.bam ...]");
+                System.err.println("\n"
+                        + "Options: -h        This help page\n"
+                        + "         -a [str]  The file type of junction annotation file (default: juncs format)\n"
+                        + "         -n        For reads mapped to n-loci, only assign 1/n read to each hit\n"
+                        + "         -c        Do read collapse to remove PCR duplicates\n"
+                        + "         -s [int]  Strandedness of BAM/SAM input (default: 0 [no strand information]; 1/-1 [same/opposite strandness]; only work with '-a bam')\n");
+                System.exit(0);
+            }
+            
+            String juncType="juncs";
+            int strandSpecific=0;
+            boolean considerNH=false;
+            boolean readCollapse=false;
+            
+            int firstSAMIndex=1;
+            while(true){
+                java.util.regex.Pattern pattern=java.util.regex.Pattern.compile("^-");
+                java.util.regex.Matcher matcher=pattern.matcher(args[firstSAMIndex]);
+                if(matcher.find()){
+                    String optionsString=matcher.replaceAll("");
+                    for(int i=0; i<optionsString.length(); i++){
+                        String option=optionsString.substring(i, i+1);
+                        switch (option) {
+                            case "s":
+                                int idx=optionsString.indexOf("s");
+                                if(idx<optionsString.length()-1){
+                                    System.err.println("\nParameter error. The strandness needs to be given.\n");
+                                    System.exit(0);
+                                }
+                                firstSAMIndex++;
+                                try{
+                                   strandSpecific=Integer.parseInt(args[firstSAMIndex]);
+                                   if(strandSpecific>1 || strandSpecific<-1){
+                                       System.err.println("\nParameter error. The strandness should be int {-1,0,1}.\n");
+                                       System.exit(0);
+                                   }
+                                } catch(java.lang.NumberFormatException e){
+                                   System.err.println("\nParameter error. The strandness should be int {-1,0,1}.\n");
+                                   System.exit(0);
+                                }
+                                break;
+                            case "n":
+                                considerNH=true;
+                                break;
+                            case "c":
+                                readCollapse=true;
+                                break;
+                            case "a":
+                                idx=optionsString.indexOf("a");
+                                if(idx<optionsString.length()-1){
+                                    System.err.println("\nParameter error. The annotation file type needs to be given.\n");
+                                    System.exit(0);
+                                }
+                                firstSAMIndex++;
+                                juncType=args[firstSAMIndex];
+                                if((!juncType.equalsIgnoreCase("gtf")) && (!juncType.equalsIgnoreCase("bed")) && (!juncType.equalsIgnoreCase("juncs"))){
+                                    System.err.println("\nParameter error. The mode should be one of \"juncs\", \"gtf\" and \"bed\".\n");
+                                    System.exit(0);
+                                }
+                                break;
+                            default:
+                                System.err.println("\nParameter error. No parameter "+option+"\n");
+                                break;
+                        }
+                        System.err.println("option added: '"+option+"'");
+                    }
+                    firstSAMIndex++;
+                }
+                else
+                    break;
+            }
+            
+            String pathJunctions=args[firstSAMIndex];
+            JunctionSet junctions=new JunctionSet(new File(pathJunctions), juncType);
+            HashMap<String, Double> totalNumMappedReads=new HashMap<>();
+            HashMap<Junction, HashMap<String, Double>> juncCount=new HashMap<>();
+            for(String chrom : junctions.getJunctions().keySet())
+                for(Junction junc : junctions.getJunctions().get(chrom))
+                    juncCount.put(junc, new HashMap<String, Double>());
+            firstSAMIndex++;
+            
+            for(int i=firstSAMIndex; i<args.length; i++){
+                String pathMapping=args[i];
+                File mappingFile=new File(pathMapping);
+                
+                // Read counting
+                ReadCounter counter=new ReadCounter(mappingFile,junctions,strandSpecific);
+                counter.estimateJunctionCounts(considerNH, readCollapse);
+                HashMap<Junction, Double> count=counter.getJunctionCounts();
+                for(Junction junc : count.keySet())
+                    juncCount.get(junc).put(args[i], count.get(junc));
+                totalNumMappedReads.put(args[i], counter.getTotalNumReads());
+                
+                System.err.println("done "+args[i]+"\n");
+            }
+            
+            String header="JUNC_CHROM\tJUNC_START\tJUNC_END\tJUNC_STRAND";
+            for(int i=firstSAMIndex; i<args.length; i++)
+                header=header+"\t"+args[i];
+            System.out.println(header);
+            
+            java.util.TreeSet<Junction> sortedJunctions=new java.util.TreeSet<>(new java.util.Comparator<Junction>() {
+                @Override
+                public int compare(Junction o1, Junction o2) {
+                    return o1.compareTo(o2);
+                }
+            });
+            
+            String totalReads=String.valueOf(totalNumMappedReads.get(args[firstSAMIndex]).intValue());
+            if(args.length>firstSAMIndex+1)
+                for(int i=firstSAMIndex+1; i<args.length; i++)
+                    totalReads=totalReads+"\t"+String.valueOf(totalNumMappedReads.get(args[i]).intValue());
+            System.out.println("TOTAL_READS\tNA\tNA\tNA\t"+totalReads);
+
+            sortedJunctions.addAll(juncCount.keySet());
+            for (Iterator<Junction> it = sortedJunctions.iterator(); it.hasNext();) {
+                Junction junc = it.next();
+                String readNum="";
+                for(int i=firstSAMIndex; i<args.length; i++)
+                    readNum=readNum+"\t"+String.valueOf(juncCount.get(junc).get(args[i]).intValue());
+                System.out.println(junc.getChrom()+"\t"+junc.getDonorSite()+"\t"+junc.getAcceptorSite()+"\t"+junc.getStrand()+readNum);
+            }
+        }
         
-        else if(cmd.equalsIgnoreCase("annotoverlap")){
+        else if(cmd.equalsIgnoreCase("annotoverlap")){ // a command for test only, to output overlapping gene pairs in the given struc annotation.
             Annotation annotation=new Annotation(new File(args[1]));
             annotation.estimateExclusiveGeneLength(true);
         }
         
-        else if(cmd.equalsIgnoreCase("junctest")){
+        else if(cmd.equalsIgnoreCase("junctest")){ // a command for test only, to test junction set generation method
+            /*
             String inputType=args[1];
             
             JunctionSet junctions=new JunctionSet();
@@ -302,7 +509,27 @@ public class HiTSeq {
                 String pathBed=args[i];
                 junctions.addJunctionSet(new File(pathBed), inputType);
             }
-            junctions.outputInJunc(true);
+            junctions.outputInJunc(true); 
+            */
+            
+            File juncFile=new File(args[1]);
+            File inputFile=new File(args[2]);
+            JunctionSet junctions=new JunctionSet(juncFile, "juncs");
+            ReadCounter counter=new ReadCounter(inputFile, junctions, 0);
+            counter.estimateJunctionCounts(false, true);
+            HashMap<Junction, Double> juncCounts=counter.getJunctionCounts();
+            
+            java.util.TreeSet<Junction> sortedJunctions=new java.util.TreeSet<>(new java.util.Comparator<Junction>() {
+                @Override
+                public int compare(Junction o1, Junction o2) {
+                    return o1.compareTo(o2);
+                }
+            });
+            sortedJunctions.addAll(juncCounts.keySet());
+            for(Iterator<Junction> it=sortedJunctions.iterator(); it.hasNext(); ){
+                Junction junc=it.next();
+                System.out.println(junc.getChrom()+"\t"+junc.getDonorSite()+"\t"+junc.getAcceptorSite()+"\t"+junc.getStrand()+"\t"+juncCounts.get(junc).intValue());
+            }
         }
     }
 }

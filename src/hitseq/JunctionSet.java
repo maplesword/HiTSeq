@@ -15,7 +15,7 @@ import net.sf.samtools.*;
  * @author hezhisong
  */
 public class JunctionSet {
-    HashMap<String,HashSet<Junction>> juncInChrom;
+    private HashMap<String,HashSet<Junction>> juncInChrom;
     
     JunctionSet(){
         juncInChrom=new HashMap<>();
@@ -26,12 +26,16 @@ public class JunctionSet {
         addJunctionSet(file, fileType);
     }
     
+    JunctionSet(Annotation annotation){
+        juncInChrom=annotation.getAllJunctionsInChrom();
+    }
+    
     /**
      * FunName: addJunctionSet.
      * Description: The method to add additional junctions in the given file to the junction set.
      * The existed undirected junctions would be replaced if directed junctions with the same coordinate are available in the new set.
      * @param file File object of the input file
-     * @param fileType File type of the input file, should be one of "bam" (will be seen as no-strand), "gtf", "bed" and "junc"
+     * @param fileType File type of the input file, should be one of "bam" (will be seen as no-strand), "gtf", "bed" and "juncs"
      */
     final void addJunctionSet(File file, String fileType){
         if(! file.exists()){
@@ -109,7 +113,7 @@ public class JunctionSet {
                             juncInChrom.get(chrom).add(newJunction);
                             
                             break;
-                        case "junc": // Fields: chrom, donor(count from 0), acceptor(count from 0), strand
+                        case "juncs": // Fields: chrom, donor(count from 0), acceptor(count from 0), strand
                             chrom=elements[0];
                             donorSite=Integer.parseInt(elements[1])+1;
                             acceptorSite=Integer.parseInt(elements[2])+1;
@@ -231,12 +235,16 @@ public class JunctionSet {
         }
     }
     
+    HashMap<String, HashSet<Junction>> getJunctions(){
+        return(juncInChrom);
+    }
+    
     /**
-     * FunName: outputInJunc.
-     * Description: Output the junction set in the modified "junc" format to STOUT.
+     * FunName: outputInJuncs.
+     * Description: Output the junction set in the modified "juncs" format to STOUT.
      * @param outputGene If true, the genes that the junction belongs to (if there is any) will be also output at the 5th column.
      */
-    void outputInJunc(boolean outputGene){
+    void outputInJuncs(boolean outputGene){
         java.util.TreeSet<String> sortedChromNames=new java.util.TreeSet<>(new java.util.Comparator<String>() {
             @Override
             public int compare(String o1, String o2) {
