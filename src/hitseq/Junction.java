@@ -75,11 +75,11 @@ public class Junction {
     }
     
     HashSet<Gene> getAnnotatedGenes(){
-        return(annotatedGenes);
+        return((HashSet<Gene>) annotatedGenes.clone());
     }
     
     HashSet<Transcript> getAnnotatedTranscripts(){
-        return(annotatedTranscripts);
+        return((HashSet<Transcript>) annotatedTranscripts.clone());
     }
 
     @Override
@@ -109,5 +109,29 @@ public class Junction {
             return((new Integer(acceptorSite)).compareTo(new Integer(junc2.acceptorSite)));
         else
             return(strand.compareTo(junc2.strand));
+    }
+    
+    boolean touch(Junction junc2){
+        if(!chrom.equals(junc2.chrom))
+            return(false);
+        else if(!strand.equals(junc2.strand) && !strand.equals("*") & !junc2.strand.equals("*"))
+            return(false);
+        else if(donorSite!=junc2.donorSite && acceptorSite!=junc2.acceptorSite)
+            return(false);
+        else
+            return(true);
+    }
+    
+    boolean cross(Junction junc2){
+        if(!chrom.equals(junc2.chrom))
+            return(false);
+        else if(!strand.equals(junc2.strand) && !strand.equals("*") & !junc2.strand.equals("*"))
+            return(false);
+        else if(donorSite < junc2.donorSite && junc2.donorSite < acceptorSite)
+            return(true);
+        else if(junc2.donorSite < donorSite && donorSite < junc2.acceptorSite)
+            return(true);
+        else
+            return(false);
     }
 }

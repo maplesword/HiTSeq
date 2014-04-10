@@ -284,11 +284,11 @@ public class Annotation {
                 
                 Transcript nonredundant=gene.getNonredundantTranscript();
                 String struc="";
-                for(int i=0; i<nonredundant.getExons().size(); i++){
+                for(int i=0; i<nonredundant.getExonNumber(); i++){
                     if(! struc.isEmpty())
                         struc=struc+",";
-                    String start=String.valueOf(nonredundant.getExons().get(i).getStart());
-                    String end=String.valueOf(nonredundant.getExons().get(i).getEnd());
+                    String start=String.valueOf(nonredundant.getExon(i).getStart());
+                    String end=String.valueOf(nonredundant.getExon(i).getEnd());
                     struc=struc+start+".."+end;
                 }
                 
@@ -315,11 +315,11 @@ public class Annotation {
 
                     Transcript nonredundant=gene.getNonredundantTranscript();
                     String struc="";
-                    for(int i=0; i<nonredundant.getExons().size(); i++){
+                    for(int i=0; i<nonredundant.getExonNumber(); i++){
                         if(! struc.isEmpty())
                             struc=struc+",";
-                        String start=String.valueOf(nonredundant.getExons().get(i).getStart());
-                        String end=String.valueOf(nonredundant.getExons().get(i).getEnd());
+                        String start=String.valueOf(nonredundant.getExon(i).getStart());
+                        String end=String.valueOf(nonredundant.getExon(i).getEnd());
                         struc=struc+start+".."+end;
                     }
 
@@ -433,8 +433,8 @@ public class Annotation {
     int getNonRedundantExonStart(String geneID, int index){
         if(allGenes.containsKey(geneID)){
             Gene gene=allGenes.get(geneID);
-            if(index < gene.getNonredundantTranscript().getExons().size() && index >=0)
-                return gene.getNonredundantTranscript().getExons().get(index).getStart();
+            if(index < gene.getNonredundantTranscript().getExonNumber() && index >=0)
+                return gene.getNonredundantTranscript().getExon(index).getStart();
         }
         return -1;
     }
@@ -442,8 +442,8 @@ public class Annotation {
     int getNonRedundantExonEnd(String geneID, int index){
         if(allGenes.containsKey(geneID)){
             Gene gene=allGenes.get(geneID);
-            if(index < gene.getNonredundantTranscript().getExons().size() && index >=0)
-                return gene.getNonredundantTranscript().getExons().get(index).getEnd();
+            if(index < gene.getNonredundantTranscript().getExonNumber() && index >=0)
+                return gene.getNonredundantTranscript().getExon(index).getEnd();
         }
         return -1;
     }
@@ -546,14 +546,13 @@ public class Annotation {
                             if(juncExisted.equals(junc)){
                                 juncExisted.addAnnotatedGeneSet(junc.getAnnotatedGenes());
                                 juncExisted.addAnnotatedTranscriptSet(junc.getAnnotatedTranscripts());
-                                gene.getAllJunctions().remove(junc);
-                                gene.getAllJunctions().add(juncExisted);
+                                gene.refleshJunction(juncExisted);
                             }
                     } else
                         junctions.get(chrom).add(junc);
                 }
             }
-            System.err.println("Chromosome "+chrom+": "+junctions.get(chrom).size()+" junctions");
+            //System.err.println("Chromosome "+chrom+": "+junctions.get(chrom).size()+" junctions");
         }
         return(junctions);
     }

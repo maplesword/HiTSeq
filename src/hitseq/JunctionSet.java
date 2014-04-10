@@ -16,18 +16,47 @@ import net.sf.samtools.*;
  */
 public class JunctionSet {
     private HashMap<String,HashSet<Junction>> juncInChrom;
+    private HashMap<String,HashSet<Junction>> juncGroups;
     
+    /**
+     * Generate an empty JunctionSet object.
+     */
     JunctionSet(){
         juncInChrom=new HashMap<>();
+        juncGroups=new HashMap<>();
     }
     
+    /**
+     * Generate a JunctionSet object with junctions annotated in the given file.
+     * @param file Annotation file
+     * @param fileType The file format, can be one of "bam", "bed", "juncs" and "gtf"
+     */
     JunctionSet(File file, String fileType){
         this();
         addJunctionSet(file, fileType);
     }
     
-    JunctionSet(Annotation annotation){
+    /**
+     * Given annotation, generate a JunctionSet object covering all junctions in the annotation.
+     * @param annotation Annotation object.
+     * @param geneAsGroup Whether to group junctions of one gene as a group, or to group them in a de novo way.
+     */
+    JunctionSet(Annotation annotation, boolean geneAsGroup){
         juncInChrom=annotation.getAllJunctionsInChrom();
+        if(geneAsGroup)
+            for(String geneID : annotation.getGeneSet()){
+                Gene gene=annotation.getGene(geneID);
+                HashSet geneJuncs=gene.getAllJunctions();
+                juncGroups.put(geneID, geneJuncs);
+            }
+    }
+    
+    /**
+     * Given annotation, generate a JunctionSet object covering all junctions in the annotation, and group junctions in a de novo way.
+     * @param annotation Annotation object.
+     */
+    JunctionSet(Annotation annotation){
+        this(annotation, true);
     }
     
     /**
@@ -129,6 +158,8 @@ public class JunctionSet {
                             juncInChrom.get(chrom).add(new Junction(chrom,strand,donorSite,acceptorSite));
                             break;
                     }
+                    if(numLines%100000==0)
+                        System.err.println("reading junction list (in "+fileType+" format): line "+numLines+"...");
                 }
             }
             catch(IOException | NumberFormatException e){
@@ -235,8 +266,84 @@ public class JunctionSet {
         }
     }
     
+    /**
+     * FunName: groupJuncSet.
+     * Description: Group the existed junctions to certain groups. Two junctions will be group together if:
+     * 1. they share one end or 2. they go across each other.
+     */
+    void groupJuncSet(){
+        HashMap<String, Integer> groupStart;
+        HashMap<String, Integer> groupEnd;
+        HashMap<String, String> groupStrand;
+        int numGroups=0;
+        for(String chrom : juncInChrom.keySet()){
+            java.util.TreeSet<Junction> sortedJunctions=new java.util.TreeSet<>(new java.util.Comparator<Junction>() {
+                @Override
+                public int compare(Junction o1, Junction o2) {
+                    return o1.compareTo(o2);
+                }
+            });
+            sortedJunctions.addAll(juncInChrom.get(chrom));
+            groupStart=new HashMap<>();
+            groupEnd=new HashMap<>();
+            groupStrand=new HashMap<>();
+            
+            for(Iterator<Junction> it2=sortedJunctions.iterator(); it2.hasNext();){
+                Junction junc=it2.next();
+                boolean added=false;
+                if(!groupStart.isEmpty()){
+                    ArrayList<String> groupNames=new ArrayList<>();
+                    groupNames.addAll(groupStart.keySet());
+                    for(String group : groupNames){
+                        if(groupEnd.get(group) < junc.getDonorSite()){
+                            groupStart.remove(group);
+                            groupEnd.remove(group);
+                            groupStrand.remove(group);
+                        }
+                        else{
+                            HashSet<Junction> junctionsGroup=juncGroups.get(group);
+                            boolean addTo=false;
+                            for(Junction junc2 : junctionsGroup)
+                                if(junc.touch(junc2) || junc.cross(junc2)){
+                                    addTo=true;
+                                    break;
+                                }
+                            if(addTo){ // Add the junction to an existed group
+                                juncGroups.get(group).add(junc);
+                                if(groupStart.get(group)>junc.getDonorSite())
+                                    groupStart.put(group, junc.getDonorSite());
+                                if(groupEnd.get(group)<junc.getAcceptorSite())
+                                    groupEnd.put(group, junc.getAcceptorSite());
+                                added=true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if(!added){// Add a new group
+                    numGroups++;
+                    String newGroupName="GROUP"+String.valueOf(numGroups);
+                    groupStart.put(newGroupName, junc.getDonorSite());
+                    groupEnd.put(newGroupName, junc.getAcceptorSite());
+                    groupStrand.put(newGroupName, junc.getStrand());
+                    juncGroups.put(newGroupName, new HashSet<Junction>());
+                    juncGroups.get(newGroupName).add(junc);
+                }
+            }
+        }
+    }
+    
+    /**
+     * FunName: getJunctions.
+     * Description: Return the copy of junction set organized by chromosomes.
+     * @return A copy of juncInChrom.
+     */
     HashMap<String, HashSet<Junction>> getJunctions(){
-        return(juncInChrom);
+        HashMap<String, HashSet<Junction>> juncReturn=new HashMap<>();
+        for(String chrom : juncInChrom.keySet())
+            juncReturn.put(chrom, (HashSet<Junction>) juncInChrom.get(chrom).clone());
+        return(juncReturn);
     }
     
     /**

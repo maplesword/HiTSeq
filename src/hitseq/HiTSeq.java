@@ -451,6 +451,7 @@ public class HiTSeq {
                 for(Junction junc : junctions.getJunctions().get(chrom))
                     juncCount.put(junc, new HashMap<String, Double>());
             firstSAMIndex++;
+            System.err.println("done reading junction set...");
             
             for(int i=firstSAMIndex; i<args.length; i++){
                 String pathMapping=args[i];

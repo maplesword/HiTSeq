@@ -7,6 +7,7 @@ package hitseq;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import net.sf.samtools.*;
 
@@ -405,6 +406,7 @@ public class ReadCounter {
      */
     void estimateJunctionCounts(boolean considerNHAttrib, boolean readCollapse){
         int numJuncReads=0;
+        HashMap<String,HashSet<Junction>> juncListChrom=junctions.getJunctions();
         try (SAMFileReader inputSam = new SAMFileReader(inputFile)) {
             String chromLast="";
             String strandLast="";
@@ -448,7 +450,7 @@ public class ReadCounter {
                     System.err.println("reading reads "+(int)java.lang.Math.ceil(totalNumReads)+"...");
                 
                 // skip reads to unannotated chromosomes
-                if(!junctions.getJunctions().containsKey(chrom))
+                if(!juncListChrom.containsKey(chrom))
                     continue;
                 
                 // determine junction strand
@@ -474,7 +476,7 @@ public class ReadCounter {
                         if(element.getOperator().equals(CigarOperator.N)){
                             Junction junc=new Junction(chrom, strand, lastBlockEnd, thisBlockEnd+1);
                             // count it only the junction is in the junction list with the correct strand.
-                            if(junctions.getJunctions().get(chrom).contains(junc)){ 
+                            if(juncListChrom.get(chrom).contains(junc)){ 
                                 if(junctionCounts.containsKey(junc))
                                     junctionCounts.put(junc, junctionCounts.get(junc)+add);
                                 else
@@ -487,12 +489,12 @@ public class ReadCounter {
                                 */
                                 Junction juncPos=new Junction(chrom, "+", lastBlockEnd, thisBlockEnd+1);
                                 Junction juncNeg=new Junction(chrom, "-", lastBlockEnd, thisBlockEnd+1);
-                                if(junctions.getJunctions().get(chrom).contains(juncPos) && !junctions.getJunctions().get(chrom).contains(juncNeg)){
+                                if(juncListChrom.get(chrom).contains(juncPos) && !juncListChrom.get(chrom).contains(juncNeg)){
                                     if(junctionCounts.containsKey(juncPos))
                                         junctionCounts.put(juncPos, junctionCounts.get(juncPos)+add);
                                     else
                                         junctionCounts.put(juncPos, add);
-                                } else if(junctions.getJunctions().get(chrom).contains(juncNeg) && !junctions.getJunctions().get(chrom).contains(juncPos)){
+                                } else if(juncListChrom.get(chrom).contains(juncNeg) && !juncListChrom.get(chrom).contains(juncPos)){
                                     if(junctionCounts.containsKey(juncPos))
                                         junctionCounts.put(juncNeg, junctionCounts.get(juncNeg)+add);
                                     else

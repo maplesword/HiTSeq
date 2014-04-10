@@ -123,8 +123,19 @@ public class Transcript {
         return(end);
     }
     
+    Exon getExon(int idx){
+        if(idx<0 || idx>exons.size()-1)
+            return(null);
+        else
+            return(exons.get(idx));
+    }
+    
+    int getExonNumber(){
+        return(exons.size());
+    }
+    
     ArrayList<Exon> getExons(){
-        return(exons);
+        return((ArrayList<Exon>) exons.clone());
     }
     
     int getTotalExonLength(){
@@ -153,7 +164,7 @@ public class Transcript {
         
         boolean sameStrand=strand.equals(transcript.getStrand());
         int idx1=0, idx2=0;
-        ArrayList<Exon> thisExons=exons, thatExons=transcript.getExons();
+        ArrayList<Exon> thisExons=exons, thatExons=transcript.exons;
         
         while(idx1<thisExons.size() && idx2<thatExons.size()){
             if(thisExons.get(idx1).getStart()<=thatExons.get(idx2).getStart() && thatExons.get(idx2).getStart()<=thisExons.get(idx1).getEnd()){
