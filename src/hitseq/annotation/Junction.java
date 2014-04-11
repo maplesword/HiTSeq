@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package hitseq;
+package hitseq.annotation;
 
 import java.util.HashSet;
 import java.util.Objects;
@@ -20,7 +20,7 @@ public class Junction {
     private HashSet<Gene> annotatedGenes;
     private HashSet<Transcript> annotatedTranscripts;
     
-    Junction(String id, String chrom, String strand, int donorSite, int acceptorSite, HashSet<Gene> annotatedGenes, HashSet<Transcript> annotatedTranscripts){
+    public Junction(String id, String chrom, String strand, int donorSite, int acceptorSite, HashSet<Gene> annotatedGenes, HashSet<Transcript> annotatedTranscripts){
         this.id=id;
         this.chrom=chrom;
         this.strand=strand;
@@ -30,55 +30,55 @@ public class Junction {
         this.annotatedTranscripts=annotatedTranscripts;
     }
     
-    Junction(String id, String chrom, String strand, int donorSite, int acceptorSite){
+    public Junction(String id, String chrom, String strand, int donorSite, int acceptorSite){
         this(id,chrom,strand,donorSite, acceptorSite, new HashSet<Gene>(), new HashSet<Transcript>());
     }
     
-    Junction(String chrom, String strand, int donorSite, int acceptorSite){
+    public Junction(String chrom, String strand, int donorSite, int acceptorSite){
         this("undefined",chrom,strand,donorSite,acceptorSite,new HashSet<Gene>(), new HashSet<Transcript>());
     }
     
-    void addAnnotatedGene(Gene gene){
+    public void addAnnotatedGene(Gene gene){
         annotatedGenes.add(gene);
     }
     
-    void addAnnotatedGeneSet(java.util.Collection<Gene> newAnnotatedGenes){
+    public void addAnnotatedGeneSet(java.util.Collection<Gene> newAnnotatedGenes){
         annotatedGenes.addAll(newAnnotatedGenes);
     }
     
-    void addAnnotatedTranscript(Transcript transcript){
+    public void addAnnotatedTranscript(Transcript transcript){
         annotatedTranscripts.add(transcript);
     }
     
-    void addAnnotatedTranscriptSet(java.util.Collection<Transcript> newAnnotatedTranscripts){
+    public void addAnnotatedTranscriptSet(java.util.Collection<Transcript> newAnnotatedTranscripts){
         annotatedTranscripts.addAll(newAnnotatedTranscripts);
     }
     
-    String getID(){
+    public String getID(){
         return(id);
     }
     
-    String getChrom(){
+    public String getChrom(){
         return(chrom);
     }
     
-    String getStrand(){
+    public String getStrand(){
         return(strand);
     }
     
-    int getDonorSite(){
+    public int getDonorSite(){
         return(donorSite);
     }
     
-    int getAcceptorSite(){
+    public int getAcceptorSite(){
         return(acceptorSite);
     }
     
-    HashSet<Gene> getAnnotatedGenes(){
+    public HashSet<Gene> getAnnotatedGenes(){
         return((HashSet<Gene>) annotatedGenes.clone());
     }
     
-    HashSet<Transcript> getAnnotatedTranscripts(){
+    public HashSet<Transcript> getAnnotatedTranscripts(){
         return((HashSet<Transcript>) annotatedTranscripts.clone());
     }
 
@@ -100,7 +100,7 @@ public class Junction {
         return(chrom.equals(junc.getChrom()) && strand.equals(junc.getStrand()) && donorSite==junc.getDonorSite() && acceptorSite==junc.getAcceptorSite());
     }
     
-    int compareTo(Junction junc2){
+    public int compareTo(Junction junc2){
         if(!chrom.equals(junc2.chrom))
             return(chrom.compareTo(junc2.chrom));
         else if(donorSite!=junc2.donorSite)
@@ -111,7 +111,7 @@ public class Junction {
             return(strand.compareTo(junc2.strand));
     }
     
-    boolean touch(Junction junc2){
+    public boolean touch(Junction junc2){
         if(!chrom.equals(junc2.chrom))
             return(false);
         else if(!strand.equals(junc2.strand) && !strand.equals("*") & !junc2.strand.equals("*"))
@@ -122,16 +122,24 @@ public class Junction {
             return(true);
     }
     
-    boolean cross(Junction junc2){
+    public boolean cross(Junction junc2){
         if(!chrom.equals(junc2.chrom))
             return(false);
         else if(!strand.equals(junc2.strand) && !strand.equals("*") & !junc2.strand.equals("*"))
             return(false);
-        else if(donorSite < junc2.donorSite && junc2.donorSite < acceptorSite)
+        else if(donorSite < junc2.donorSite && junc2.donorSite < acceptorSite && acceptorSite < junc2.acceptorSite)
             return(true);
-        else if(junc2.donorSite < donorSite && donorSite < junc2.acceptorSite)
+        else if(junc2.donorSite < donorSite && donorSite < junc2.acceptorSite && junc2.acceptorSite < acceptorSite)
             return(true);
         else
             return(false);
+    }
+    
+    public boolean withDonorSite(int donor){
+        return(donor==donorSite);
+    }
+    
+    public boolean withAcceptorSite(int acceptor){
+        return(acceptor==acceptorSite);
     }
 }

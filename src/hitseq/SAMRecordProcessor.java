@@ -4,6 +4,7 @@
  */
 package hitseq;
 
+import hitseq.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.List;
 import net.sf.samtools.AlignmentBlock;

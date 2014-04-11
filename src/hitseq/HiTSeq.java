@@ -4,6 +4,9 @@
  */
 package hitseq;
 
+import hitseq.annotation.Annotation;
+import hitseq.annotation.Junction;
+import hitseq.annotation.JunctionSet;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,14 +21,6 @@ public class HiTSeq {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
-        /**
-         * The command of this package could be the following.
-         * 1. info - to get the basic information of the mapping)
-         * 2. count - count the number of reads covering each gene in annotation
-         * 3. rpkm - estimate the RPKM for each gene in annotation
-         * 4. uniq - extract the uniquely mapped reads in the mapping
-         */
-        
         // TODO code application logic here
         if(args.length==0 || args[0].equals("help")){
             System.err.println("\nThis is the help page of HiTSeq.\n"
@@ -182,7 +177,7 @@ public class HiTSeq {
             String pathAnnotation=args[firstSAMIndex];            
             Annotation annotation=new Annotation(new File(pathAnnotation), annotFormat);
             if(modeForMultiGenesOverlap==0)
-                annotation.estimateExclusiveGeneLength();
+                annotation.estimateAmbiguousGeneRegions();
             HashMap<String, Double> totalNumMappedReads=new HashMap<>();
             HashMap<String, HashMap<String, Double>> readCount=new HashMap<>();
             HashMap<String, HashMap<String, Double>> fpkm=new HashMap<>();
@@ -498,39 +493,15 @@ public class HiTSeq {
         
         else if(cmd.equalsIgnoreCase("annotoverlap")){ // a command for test only, to output overlapping gene pairs in the given struc annotation.
             Annotation annotation=new Annotation(new File(args[1]));
-            annotation.estimateExclusiveGeneLength(true);
+            annotation.estimateAmbiguousGeneRegions(true);
         }
         
-        else if(cmd.equalsIgnoreCase("junctest")){ // a command for test only, to test junction set generation method
-            /*
-            String inputType=args[1];
-            
-            JunctionSet junctions=new JunctionSet();
-            for(int i=2; i<args.length; i++){
-                String pathBed=args[i];
-                junctions.addJunctionSet(new File(pathBed), inputType);
-            }
-            junctions.outputInJunc(true); 
-            */
-            
-            File juncFile=new File(args[1]);
-            File inputFile=new File(args[2]);
-            JunctionSet junctions=new JunctionSet(juncFile, "juncs");
-            ReadCounter counter=new ReadCounter(inputFile, junctions, 0);
-            counter.estimateJunctionCounts(false, true);
-            HashMap<Junction, Double> juncCounts=counter.getJunctionCounts();
-            
-            java.util.TreeSet<Junction> sortedJunctions=new java.util.TreeSet<>(new java.util.Comparator<Junction>() {
-                @Override
-                public int compare(Junction o1, Junction o2) {
-                    return o1.compareTo(o2);
-                }
-            });
-            sortedJunctions.addAll(juncCounts.keySet());
-            for(Iterator<Junction> it=sortedJunctions.iterator(); it.hasNext(); ){
-                Junction junc=it.next();
-                System.out.println(junc.getChrom()+"\t"+junc.getDonorSite()+"\t"+junc.getAcceptorSite()+"\t"+junc.getStrand()+"\t"+juncCounts.get(junc).intValue());
-            }
+        else if(cmd.equalsIgnoreCase("junctest")){ // a command for test only, to test junction grouping
+            String juncType=args[1];
+            String pathJunctions=args[2];
+            JunctionSet junctions=new JunctionSet(new File(pathJunctions), juncType);
+            junctions.groupJuncSet();
+            junctions.outputJuncGroups();
         }
     }
 }

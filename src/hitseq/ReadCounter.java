@@ -4,6 +4,9 @@
  */
 package hitseq;
 
+import hitseq.annotation.Annotation;
+import hitseq.annotation.Junction;
+import hitseq.annotation.JunctionSet;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -279,7 +282,7 @@ public class ReadCounter {
             int length;
             if(modeForMultiGenesOverlap==0){
                 if(annotation.getExclusiveGeneLengthNoStrand(gene)==-1)
-                    annotation.estimateExclusiveGeneLength();
+                    annotation.estimateAmbiguousGeneRegions();
                 length=strandSpecific==0 ? annotation.getExclusiveGeneLengthNoStrand(gene) : annotation.getExclusiveGeneLength(gene);
             } else
                 length=annotation.getGeneLength(gene);

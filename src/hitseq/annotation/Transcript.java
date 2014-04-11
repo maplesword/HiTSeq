@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package hitseq;
+package hitseq.annotation;
 
 import java.util.ArrayList;
 
@@ -19,7 +19,7 @@ public class Transcript {
     private ArrayList<Exon> exons;
     private int length;
     
-    Transcript(String id, String chrom, String strand, int start, int end){
+    public Transcript(String id, String chrom, String strand, int start, int end){
         this.id=id;
         this.chrom=chrom;
         this.strand=strand;
@@ -29,11 +29,11 @@ public class Transcript {
         this.length=0;
     }
     
-    Transcript(String id, String chrom, String strand){
+    public Transcript(String id, String chrom, String strand){
         this(id, chrom, strand, -1, -1);
     }
     
-    void addExon(Exon newExon){
+    public void addExon(Exon newExon){
         exons.add(newExon);
         if(start==-1 || newExon.getStart()<start)
             start=newExon.getStart();
@@ -43,17 +43,17 @@ public class Transcript {
         this.length+=newExon.getLength();
     }
     
-    void addExon(int exonStart, int exonEnd){
+    public void addExon(int exonStart, int exonEnd){
         Exon newExon=new Exon(chrom, strand, exonStart, exonEnd);
         addExon(newExon);
     }
     
-    void addExons(ArrayList<Exon> newExons){
+    public void addExons(ArrayList<Exon> newExons){
         for(Exon newExon : newExons)
             addExon(newExon);
     }
     
-    void sortExons(){
+    public void sortExons(){
         if(exons.size()>1){
             for(int i=1; i<exons.size(); i++){
                 int j=0;
@@ -68,7 +68,7 @@ public class Transcript {
         this.end=exons.get(exons.size()-1).getEnd();
     }
     
-    void mergeExons(){
+    public void mergeExons(){
         if(exons.size()>1){
             sortExons();
             
@@ -103,46 +103,46 @@ public class Transcript {
         }
     }
     
-    String getID(){
+    public String getID(){
         return(id);
     }
     
-    String getChrom(){
+    public String getChrom(){
         return(chrom);
     }
     
-    String getStrand(){
+    public String getStrand(){
         return(strand);
     }
     
-    int getStart(){
+    public int getStart(){
         return(start);
     }
     
-    int getEnd(){
+    public int getEnd(){
         return(end);
     }
     
-    Exon getExon(int idx){
+    public Exon getExon(int idx){
         if(idx<0 || idx>exons.size()-1)
             return(null);
         else
             return(exons.get(idx));
     }
     
-    int getExonNumber(){
+    public int getExonNumber(){
         return(exons.size());
     }
     
-    ArrayList<Exon> getExons(){
+    public ArrayList<Exon> getExons(){
         return((ArrayList<Exon>) exons.clone());
     }
     
-    int getTotalExonLength(){
+    public int getTotalExonLength(){
         return(length);
     }
     
-    ArrayList<Junction> getJunctions(){
+    public ArrayList<Junction> getJunctions(){
         sortExons();
         ArrayList<Junction> junctions=new ArrayList<>();
         if(exons.size()>1){
@@ -159,7 +159,7 @@ public class Transcript {
         return(junctions);
     }
     
-    ArrayList<Exon> getOverlappingRegions(Transcript transcript, boolean considerStrand){
+    public ArrayList<Exon> getOverlappingRegions(Transcript transcript, boolean considerStrand){
         ArrayList<Exon> answer=new ArrayList<>();
         
         boolean sameStrand=strand.equals(transcript.getStrand());

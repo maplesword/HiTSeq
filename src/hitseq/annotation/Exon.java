@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package hitseq;
+package hitseq.annotation;
 
 /**
  *
@@ -15,7 +15,7 @@ public class Exon {
     private int start;
     private int end;
     
-    Exon(String id, String chrom, String strand, int start, int end){
+    public Exon(String id, String chrom, String strand, int start, int end){
         if(start>end){
             System.err.println("Error when creating Exon: the start coordinate should not be larger than the end coordinate.");
             System.exit(1);
@@ -28,39 +28,39 @@ public class Exon {
         this.end=end;
     }
     
-    Exon(String chrom, String strand, int start, int end){
+    public Exon(String chrom, String strand, int start, int end){
         this("undefined", chrom, strand, start, end);
     }
     
-    String getID(){
+    public String getID(){
         return(id);
     }
     
-    String getChrom(){
+    public String getChrom(){
         return(chrom);
     }
     
-    String getStrand(){
+    public String getStrand(){
         return(strand);
     }
     
-    int getStart(){
+    public int getStart(){
         return(start);
     }
     
-    int getEnd(){
+    public int getEnd(){
         return(end);
     }
     
-    static boolean atSameChrom(Exon exon1, Exon exon2){
+    public static boolean atSameChrom(Exon exon1, Exon exon2){
         return(exon1.chrom.equals(exon2.chrom));
     }
     
-    static boolean atSameStrand(Exon exon1, Exon exon2){
+    public static boolean atSameStrand(Exon exon1, Exon exon2){
         return(exon1.strand.equals(exon2.strand));
     }
     
-    int startCompareTo(Exon exon2){
+    public int startCompareTo(Exon exon2){
         int compare;
         if(this.start>exon2.start)
             compare=1;
@@ -72,7 +72,7 @@ public class Exon {
         return(compare);
     }
     
-    int endCompareTo(Exon exon2){
+    public int endCompareTo(Exon exon2){
         int compare;
         if(this.end>exon2.end)
             compare=1;
@@ -84,14 +84,14 @@ public class Exon {
         return(compare);
     }
     
-    int compareTo(Exon exon2){
+    public int compareTo(Exon exon2){
         int compare=startCompareTo(exon2);
         if(compare==0)
             compare=endCompareTo(exon2);
         return(compare);
     }
     
-    int getLength(){
+    public int getLength(){
         return(end-start+1);
     }
 }

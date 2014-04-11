@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package hitseq;
+package hitseq.annotation;
 
 import java.io.File;
 import java.io.RandomAccessFile;
@@ -20,8 +20,6 @@ public class Annotation {
     private HashMap<String, ArrayList<String>> genesInChrom;
     private HashMap<String, Gene> allGenes;
     private HashMap<Gene, Integer> lengthOfGene;
-    private HashMap<Gene, Integer> exclusiveLengthOfGene;
-    private HashMap<Gene, Integer> exclusiveLengthOfGeneNoStrand;
     
     private HashMap<String, Integer> pointerOfChrom;
     private HashMap<Gene, Integer> pointerOfGene;
@@ -39,7 +37,7 @@ public class Annotation {
         this(file, "struc");
     }
     
-    final void reset(){
+    public final void reset(){
         resetAnnotation();
         resetPointer();
     }
@@ -48,19 +46,17 @@ public class Annotation {
      * FunName: resetAnnotation.
      * Description: Empty the annotation set.
      */
-    final void resetAnnotation(){
+    public final void resetAnnotation(){
         genesInChrom=new HashMap<>();
         allGenes=new HashMap<>();
         lengthOfGene=new HashMap<>();
-        exclusiveLengthOfGene=new HashMap<>();
-        exclusiveLengthOfGeneNoStrand=new HashMap<>();
     }
     
     /**
      * FunName: resetPointer.
      * Description: Set all gene pointers at chromosomes as well as all exon pointers at genes to 0.
      */
-    final void resetPointer(){
+    public final void resetPointer(){
         pointerOfChrom=new HashMap<>();
         pointerOfGene=new HashMap<>();
         if(! genesInChrom.isEmpty())
@@ -78,7 +74,7 @@ public class Annotation {
      * @param file The File object of the new annotation file.
      * @param fileType The file type of the given file. Should be one of "struc", "gtf" and "bed" (only for BED8).
      */
-    final void addAdditionalAnnotations(File file, String fileType){
+    public final void addAdditionalAnnotations(File file, String fileType){
         try{
             RandomAccessFile fileIn=new RandomAccessFile(file,"r");
             
@@ -272,7 +268,7 @@ public class Annotation {
      * FunName: outputInStruc.
      * Description: Output the annotation set to STOUT in struc format.
      */
-    void outputInStruc(){
+    public void outputInStruc(){
         // Fields: geneID, chrom, strand, exonLength, exonStructure
         for(String chr : genesInChrom.keySet()){
             for(String geneID : genesInChrom.get(chr)){
@@ -302,7 +298,7 @@ public class Annotation {
      * Description: Output the annotation set to the given file in struc format.
      * @param file The File object for output.
      */
-    void outputInStruc(File file){
+    public void outputInStruc(File file){
         try{
             RandomAccessFile fileOut=new RandomAccessFile(file,"w");
             for(String chr : genesInChrom.keySet()){
@@ -337,15 +333,15 @@ public class Annotation {
      * @param chrom Name of the chromosome.
      * @return true if the chromosome exists.
      */
-    boolean chromIsExisted(String chrom){
+    public boolean chromIsExisted(String chrom){
         return genesInChrom.containsKey(chrom);
     }
     
-    String[] getAvailableChromosomes(){
+    public String[] getAvailableChromosomes(){
         return (String[])genesInChrom.keySet().toArray();
     }
     
-    String[] getGeneSet(){
+    public String[] getGeneSet(){
         Object[] results=allGenes.keySet().toArray();
         String[] answer=new String[results.length];
         for(int i=0; i<results.length; i++)
@@ -353,84 +349,84 @@ public class Annotation {
         return answer;
     }
     
-    String[] getGeneSet(String chrom){
+    public String[] getGeneSet(String chrom){
         if(genesInChrom.containsKey(chrom))
             return (String[]) genesInChrom.get(chrom).toArray();
         else
             return null;
     }
     
-    int getCurrentGenePointer(String chrom){
+    public int getCurrentGenePointer(String chrom){
         if(genesInChrom.containsKey(chrom))
             return pointerOfChrom.get(chrom);
         else
             return -1;
     }
     
-    String getGene(String chrom, int pointer){
+    public String getGene(String chrom, int pointer){
         if(genesInChrom.containsKey(chrom) && genesInChrom.get(chrom).size()>pointer)
             return genesInChrom.get(chrom).get(pointer);
         else
             return null;
     }
     
-    Gene getGene(String geneID){
+    public Gene getGene(String geneID){
         if(allGenes.containsKey(geneID))
             return(allGenes.get(geneID));
         else
             return null;
     }
     
-    String getGeneStrand(String gene){
+    public String getGeneStrand(String gene){
         if(allGenes.containsKey(gene))
             return allGenes.get(gene).getStrand();
         else
             return null;
     }
     
-    int getGeneLength(String gene){
+    public int getGeneLength(String gene){
         if(allGenes.containsKey(gene))
             return lengthOfGene.get(allGenes.get(gene));
         else
             return -1;
     }
     
-    int getExclusiveGeneLength(String gene){
+    public int getExclusiveGeneLength(String gene){
         if(allGenes.containsKey(gene))
-            return exclusiveLengthOfGene.get(allGenes.get(gene));
+            return allGenes.get(gene).getTotalExonLength()-allGenes.get(gene).getAmbiguousRegions().getTotalExonLength();
         else
             return -1;
     }
     
-    int getExclusiveGeneLengthNoStrand(String gene){
+    public int getExclusiveGeneLengthNoStrand(String gene){
         if(allGenes.containsKey(gene))
-            return exclusiveLengthOfGeneNoStrand.get(allGenes.get(gene));
+            return allGenes.get(gene).getTotalExonLength()-allGenes.get(gene).getAmbiguousRegionsIgnoringStrand().getTotalExonLength();
         else
             return -1;
     }
     
-    int getGeneStart(String gene){
+    public int getGeneStart(String gene){
         if(allGenes.containsKey(gene))
             return allGenes.get(gene).getStart();
         else
             return -1;
     }
     
-    int getGeneEnd(String gene){
+    public int getGeneEnd(String gene){
         if(allGenes.containsKey(gene))
             return allGenes.get(gene).getEnd();
         else
             return -1;
     }
     
-    int getCurrentExonIndex(String gene){
+    public int getCurrentExonIndex(String gene){
         if(allGenes.containsKey(gene))
             return pointerOfGene.get(allGenes.get(gene));
         else
             return -1;
     }
     
-    int getNonRedundantExonStart(String geneID, int index){
+    public int getNonRedundantExonStart(String geneID, int index){
         if(allGenes.containsKey(geneID)){
             Gene gene=allGenes.get(geneID);
             if(index < gene.getNonredundantTranscript().getExonNumber() && index >=0)
@@ -439,7 +435,7 @@ public class Annotation {
         return -1;
     }
     
-    int getNonRedundantExonEnd(String geneID, int index){
+    public int getNonRedundantExonEnd(String geneID, int index){
         if(allGenes.containsKey(geneID)){
             Gene gene=allGenes.get(geneID);
             if(index < gene.getNonredundantTranscript().getExonNumber() && index >=0)
@@ -448,7 +444,7 @@ public class Annotation {
         return -1;
     }
     
-    int movePointerGene(String chrom){
+    public int movePointerGene(String chrom){
         if(pointerOfChrom.get(chrom)>=genesInChrom.get(chrom).size())
             pointerOfChrom.put(chrom, -1);
         else
@@ -456,7 +452,7 @@ public class Annotation {
         return pointerOfChrom.get(chrom);
     }
     
-    int movePointerExon(String gene){
+    public int movePointerExon(String gene){
         pointerOfGene.put(allGenes.get(gene), pointerOfGene.get(allGenes.get(gene))+1);
         return pointerOfGene.get(allGenes.get(gene));
     }
@@ -466,12 +462,7 @@ public class Annotation {
      * Description: Detect overlap among genes to calculate the exclusive exon length of every gene for both consider or not the strand.
      * @param outputPairs if true, output the gene pairs with overlapping regions (even on different strands).
      */
-    void estimateExclusiveGeneLength(boolean outputPairs){
-        for(Gene gene : lengthOfGene.keySet()){
-            exclusiveLengthOfGene.put(gene, lengthOfGene.get(gene));
-            exclusiveLengthOfGeneNoStrand.put(gene, lengthOfGene.get(gene));
-        }
-        
+    public void estimateAmbiguousGeneRegions(boolean outputPairs){
         for(String chrom : genesInChrom.keySet()){
             ArrayList<String> genesInThisChrom=genesInChrom.get(chrom);
             for(int i=0; i<genesInThisChrom.size()-1; i++){
@@ -498,20 +489,21 @@ public class Annotation {
                     ArrayList<Exon> overlapRegionsWithStrand=thisGene.getOverlappingRegion(thatGene, true);
                     ArrayList<Exon> overlapRegionsNoStrand=thisGene.getOverlappingRegion(thatGene, false);
                     
-                    for(Exon exon : overlapRegionsWithStrand)
-                        overlapSize+=exon.getLength();
-                    for(Exon exon : overlapRegionsNoStrand)
-                        overlapSizeNoStrand+=exon.getLength();
+                    for(Exon exon : overlapRegionsWithStrand){
+                        thisGene.getAmbiguousRegions().addExon(exon);
+                        thatGene.getAmbiguousRegions().addExon(exon);
+                    }
+                    for(Exon exon : overlapRegionsNoStrand){
+                        thisGene.getAmbiguousRegionsIgnoringStrand().addExon(exon);
+                        thatGene.getAmbiguousRegionsIgnoringStrand().addExon(exon);
+                    }
                     
-                    exclusiveLengthOfGene.put(thisGene, exclusiveLengthOfGene.get(thisGene).intValue()-overlapSize);
-                    exclusiveLengthOfGeneNoStrand.put(thisGene, exclusiveLengthOfGeneNoStrand.get(thisGene).intValue()-overlapSizeNoStrand);
-                    exclusiveLengthOfGene.put(thatGene, exclusiveLengthOfGene.get(thatGene).intValue()-overlapSize);
-                    exclusiveLengthOfGeneNoStrand.put(thatGene, exclusiveLengthOfGeneNoStrand.get(thatGene).intValue()-overlapSizeNoStrand);
-
                     if(outputPairs && overlapSizeNoStrand>0)
                         System.out.println(thisGene+"\t"+thatGene+"\t"+sameStrand+"\t"+overlapSizeNoStrand+"\t"+overlapSize);
                 }
                 //System.out.println("done "+i+" genes in "+chrom);
+                thisGene.getAmbiguousRegions().mergeExons();
+                thisGene.getAmbiguousRegionsIgnoringStrand().mergeExons();
             }
         }
     }
@@ -521,8 +513,8 @@ public class Annotation {
      * Description: Detect overlap among genes to calculate the exclusive exon length of every gene for both consider or not the strand.
      * Here, the overlapping pairs will not be output.
      */
-    void estimateExclusiveGeneLength(){
-        estimateExclusiveGeneLength(false);
+    public void estimateAmbiguousGeneRegions(){
+        estimateAmbiguousGeneRegions(false);
     }
     
     /**
@@ -530,7 +522,7 @@ public class Annotation {
      * Description: Get all the possible junctions based on the current annotation set, and organize junctions at the same chromosome into a HashSet.
      * @return The junctions annotated by the current annotation set, organized by chromosomes.
      */
-    HashMap<String,HashSet<Junction>> getAllJunctionsInChrom(){
+    public HashMap<String,HashSet<Junction>> getAllJunctionsInChrom(){
         HashMap<String,HashSet<Junction>> junctions=new HashMap<>();
         for(String chrom : genesInChrom.keySet()){
             junctions.put(chrom, new HashSet<Junction>());

@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package hitseq;
+package hitseq.annotation;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,7 +21,7 @@ public class JunctionSet {
     /**
      * Generate an empty JunctionSet object.
      */
-    JunctionSet(){
+    public JunctionSet(){
         juncInChrom=new HashMap<>();
         juncGroups=new HashMap<>();
     }
@@ -31,7 +31,7 @@ public class JunctionSet {
      * @param file Annotation file
      * @param fileType The file format, can be one of "bam", "bed", "juncs" and "gtf"
      */
-    JunctionSet(File file, String fileType){
+    public JunctionSet(File file, String fileType){
         this();
         addJunctionSet(file, fileType);
     }
@@ -41,8 +41,9 @@ public class JunctionSet {
      * @param annotation Annotation object.
      * @param geneAsGroup Whether to group junctions of one gene as a group, or to group them in a de novo way.
      */
-    JunctionSet(Annotation annotation, boolean geneAsGroup){
+    public JunctionSet(Annotation annotation, boolean geneAsGroup){
         juncInChrom=annotation.getAllJunctionsInChrom();
+        juncGroups=new HashMap<>();
         if(geneAsGroup)
             for(String geneID : annotation.getGeneSet()){
                 Gene gene=annotation.getGene(geneID);
@@ -55,7 +56,7 @@ public class JunctionSet {
      * Given annotation, generate a JunctionSet object covering all junctions in the annotation, and group junctions in a de novo way.
      * @param annotation Annotation object.
      */
-    JunctionSet(Annotation annotation){
+    public JunctionSet(Annotation annotation){
         this(annotation, true);
     }
     
@@ -66,7 +67,7 @@ public class JunctionSet {
      * @param file File object of the input file
      * @param fileType File type of the input file, should be one of "bam" (will be seen as no-strand), "gtf", "bed" and "juncs"
      */
-    final void addJunctionSet(File file, String fileType){
+    public final void addJunctionSet(File file, String fileType){
         if(! file.exists()){
             System.err.println("Cannot find file "+file.getAbsolutePath()+".");
             System.exit(1);
@@ -175,7 +176,7 @@ public class JunctionSet {
      * @param file File object of the input file
      * @param strandSpecific Strand mode of the BAM file. 0 for no strand, 1 for the same strand, -1 for the opposite strand.
      */
-    final void addJunctionSet(File file, int strandSpecific){
+    public final void addJunctionSet(File file, int strandSpecific){
         try (SAMFileReader inputSam = new SAMFileReader(file)) {
             int numJunctionReads=0, numMappedReads=0;
             for(SAMRecord record : inputSam){
@@ -250,7 +251,7 @@ public class JunctionSet {
      * Description: Given a GTF file as input, to annotate the existed junctions in the current junction set.
      * @param file The file object of the GTF input file.
      */
-    void annotateJuncSet(File file){
+    public void annotateJuncSet(File file){
         Annotation annotation=new Annotation(file, "gtf");
         System.err.println("generate junctions from annotation...");
         HashMap<String,HashSet<Junction>> annotatedJuncInChrom=annotation.getAllJunctionsInChrom();
@@ -271,13 +272,14 @@ public class JunctionSet {
      * Description: Group the existed junctions to certain groups. Two junctions will be group together if:
      * 1. they share one end or 2. they go across each other.
      */
-    void groupJuncSet(){
+    public void groupJuncSet(){
+        juncGroups=new HashMap<>();
         HashMap<String, Integer> groupStart;
         HashMap<String, Integer> groupEnd;
         HashMap<String, String> groupStrand;
         int numGroups=0;
         for(String chrom : juncInChrom.keySet()){
-            java.util.TreeSet<Junction> sortedJunctions=new java.util.TreeSet<>(new java.util.Comparator<Junction>() {
+            TreeSet<Junction> sortedJunctions=new TreeSet<>(new Comparator<Junction>() {
                 @Override
                 public int compare(Junction o1, Junction o2) {
                     return o1.compareTo(o2);
@@ -290,11 +292,19 @@ public class JunctionSet {
             
             for(Iterator<Junction> it2=sortedJunctions.iterator(); it2.hasNext();){
                 Junction junc=it2.next();
-                boolean added=false;
+                ArrayList<String> addToGroups=new ArrayList<>();
+                
                 if(!groupStart.isEmpty()){
-                    ArrayList<String> groupNames=new ArrayList<>();
+                    TreeSet<String> groupNames=new TreeSet<>(new Comparator<String>(){
+                        @Override
+                        public int compare(String o1, String o2){
+                            return(o1.compareTo(o2));
+                        }
+                    });
                     groupNames.addAll(groupStart.keySet());
-                    for(String group : groupNames){
+                    
+                    for(Iterator<String> it3=groupNames.iterator(); it3.hasNext(); ){
+                        String group=it3.next();
                         if(groupEnd.get(group) < junc.getDonorSite()){
                             groupStart.remove(group);
                             groupEnd.remove(group);
@@ -308,27 +318,49 @@ public class JunctionSet {
                                     addTo=true;
                                     break;
                                 }
-                            if(addTo){ // Add the junction to an existed group
-                                juncGroups.get(group).add(junc);
-                                if(groupStart.get(group)>junc.getDonorSite())
-                                    groupStart.put(group, junc.getDonorSite());
-                                if(groupEnd.get(group)<junc.getAcceptorSite())
-                                    groupEnd.put(group, junc.getAcceptorSite());
-                                added=true;
-                                break;
-                            }
+                            if(addTo)
+                                addToGroups.add(group);
                         }
                     }
                 }
                 
-                if(!added){// Add a new group
+                if(addToGroups.isEmpty()){ // Add a new group
                     numGroups++;
-                    String newGroupName="GROUP"+String.valueOf(numGroups);
+                    String newGroupName="G"+String.format("%08d", numGroups);
                     groupStart.put(newGroupName, junc.getDonorSite());
                     groupEnd.put(newGroupName, junc.getAcceptorSite());
                     groupStrand.put(newGroupName, junc.getStrand());
                     juncGroups.put(newGroupName, new HashSet<Junction>());
                     juncGroups.get(newGroupName).add(junc);
+                } else{ // Add the junction to an existed group, and join groups if necessary.
+                    String groupName=addToGroups.get(0);
+                    HashSet<Junction> juncGroup=new HashSet<>();
+                    int jointGroupStart=-1;
+                    int jointGroupEnd=-1;
+                    String jointGroupStrand=groupStrand.get(groupName);
+                    
+                    for(String group : addToGroups){
+                        juncGroup.addAll(juncGroups.get(group));
+                        if(jointGroupStart==-1 || jointGroupStart>groupStart.get(group))
+                            jointGroupStart=groupStart.get(group);
+                        if(jointGroupEnd==-1 || jointGroupEnd<groupEnd.get(group))
+                            jointGroupEnd=groupEnd.get(group);
+                        
+                        juncGroups.remove(group);
+                        groupStart.remove(group);
+                        groupEnd.remove(group);
+                        groupStrand.remove(group);
+                    }
+                    juncGroup.add(junc);
+                    if(jointGroupStart>junc.getDonorSite())
+                        jointGroupStart=junc.getDonorSite();
+                    if(jointGroupEnd<junc.getAcceptorSite())
+                        jointGroupEnd=junc.getAcceptorSite();
+                    
+                    groupStart.put(groupName, jointGroupStart);
+                    groupEnd.put(groupName, jointGroupEnd);
+                    groupStrand.put(groupName, jointGroupStrand);
+                    juncGroups.put(groupName, juncGroup);
                 }
             }
         }
@@ -339,7 +371,7 @@ public class JunctionSet {
      * Description: Return the copy of junction set organized by chromosomes.
      * @return A copy of juncInChrom.
      */
-    HashMap<String, HashSet<Junction>> getJunctions(){
+    public HashMap<String, HashSet<Junction>> getJunctions(){
         HashMap<String, HashSet<Junction>> juncReturn=new HashMap<>();
         for(String chrom : juncInChrom.keySet())
             juncReturn.put(chrom, (HashSet<Junction>) juncInChrom.get(chrom).clone());
@@ -347,12 +379,26 @@ public class JunctionSet {
     }
     
     /**
+     * FunName: getJunctionGroups.
+     * Description: Return the copy of junction set organized by groups.
+     * @return A copy of juncGroups. If it is empty, return null.
+     */
+    public HashMap<String, HashSet<Junction>> getJunctionGroups(){
+        if(juncGroups.isEmpty())
+            return(null);
+        HashMap<String, HashSet<Junction>> juncGroupReturn=new HashMap<>();
+        for(String group : juncGroups.keySet())
+            juncGroupReturn.put(group, (HashSet<Junction>)juncGroups.get(group).clone());
+        return(juncGroupReturn);
+    }
+    
+    /**
      * FunName: outputInJuncs.
      * Description: Output the junction set in the modified "juncs" format to STOUT.
      * @param outputGene If true, the genes that the junction belongs to (if there is any) will be also output at the 5th column.
      */
-    void outputInJuncs(boolean outputGene){
-        java.util.TreeSet<String> sortedChromNames=new java.util.TreeSet<>(new java.util.Comparator<String>() {
+    public void outputInJuncs(boolean outputGene){
+        TreeSet<String> sortedChromNames=new TreeSet<>(new Comparator<String>() {
             @Override
             public int compare(String o1, String o2) {
                 return o1.compareTo(o2);
@@ -361,7 +407,7 @@ public class JunctionSet {
         sortedChromNames.addAll(juncInChrom.keySet());
         for (Iterator<String> it = sortedChromNames.iterator(); it.hasNext();) {
             String chrom = it.next();
-            java.util.TreeSet<Junction> sortedJunctions=new java.util.TreeSet<>(new java.util.Comparator<Junction>() {
+            TreeSet<Junction> sortedJunctions=new TreeSet<>(new Comparator<Junction>() {
                 @Override
                 public int compare(Junction o1, Junction o2) {
                     return o1.compareTo(o2);
@@ -387,6 +433,39 @@ public class JunctionSet {
                 }
                 else
                     System.out.println(chrom+"\t"+(donorSite-1)+"\t"+(acceptorSite-1)+"\t"+strand);
+            }
+        }
+    }
+    
+    /**
+     * FunName: outputJuncGroups.
+     * Description: Output the grouped junctions to STDOUT. The first column is group name. All coordinates are counted from 1.
+     */
+    public void outputJuncGroups(){
+        if(juncGroups.isEmpty())
+            groupJuncSet();
+        
+        TreeSet<String> sortedGroups=new TreeSet<>(new Comparator<String>() {
+            @Override
+            public int compare(String o1, String o2) {
+                return(o1.compareTo(o2));
+            }
+        });
+        sortedGroups.addAll(juncGroups.keySet());
+        
+        for(Iterator<String> it=sortedGroups.iterator(); it.hasNext();){
+            String group=it.next();
+            TreeSet<Junction> sortedJunc=new TreeSet<>(new Comparator<Junction>(){
+                @Override
+                public int compare(Junction junc1, Junction junc2){
+                    return(junc1.compareTo(junc2));
+                }
+            });
+            sortedJunc.addAll(juncGroups.get(group));
+            
+            for(Iterator<Junction> it2=sortedJunc.iterator(); it2.hasNext(); ){
+                Junction junc=it2.next();
+                System.out.println(group+"\t"+junc.getChrom()+"\t"+junc.getDonorSite()+"\t"+junc.getAcceptorSite()+"\t"+junc.getStrand());
             }
         }
     }
