@@ -15,61 +15,83 @@ import java.util.Objects;
 public class ASEvent {
     public static final int SKIPP_EXON=0;
     public static final int MUTUAL_EXCL=1;
-    public static final int ALT_FIVE=2;
-    public static final int ALT_THREE=3;
+    public static final int ALT_END=2;
     
     private int type;
     private HashSet<Junction> inclusiveJunctionsP1;
     private HashSet<Junction> inclusiveJunctionsP2;
-    private HashSet<Junction> exclusiveJunctions;
+    private HashSet<Junction> exclusiveJunctionsP1;
+    private HashSet<Junction> exclusiveJunctionsP2;
     
-    public ASEvent(int type, Collection<Junction> inclusiveJunctionsP1, Collection<Junction> inclusiveJunctionsP2, Collection<Junction> exclusiveJunctions){
-        if(type<0 || type>3){
-            System.err.println("AS Event type error. It should be an integer in [0,3].");
+    public ASEvent(int type, Collection<Junction> inclusiveJunctionsP1, Collection<Junction> inclusiveJunctionsP2, Collection<Junction> exclusiveJunctionsP1, Collection<Junction> exclusiveJunctionsP2){
+        if(type!=1){
+            System.err.println("AS Event type error. This constructor is only for mutual exclusive exons {1}.");
             System.exit(1);
         }
         this.inclusiveJunctionsP1=new HashSet<>();
         this.inclusiveJunctionsP2=new HashSet<>();
-        this.exclusiveJunctions=new HashSet<>();
+        this.exclusiveJunctionsP1=new HashSet<>();
+        this.exclusiveJunctionsP2=new HashSet<>();
         this.inclusiveJunctionsP1.addAll(inclusiveJunctionsP1);
         this.inclusiveJunctionsP2.addAll(inclusiveJunctionsP2);
-        this.exclusiveJunctions.addAll(exclusiveJunctions);
+        this.exclusiveJunctionsP1.addAll(exclusiveJunctionsP1);
+        this.exclusiveJunctionsP2.addAll(exclusiveJunctionsP2);
+    }
+    
+    public ASEvent(int type, Collection<Junction> inclusiveJunctionsP1, Collection<Junction> inclusiveJunctionsP2, Collection<Junction> exclusiveJunctions){
+        if(type!=0){
+            System.err.println("AS Event type error. This constructor is only for skipped exons {0}.");
+            System.exit(1);
+        }
+        this.inclusiveJunctionsP1=new HashSet<>();
+        this.inclusiveJunctionsP2=new HashSet<>();
+        this.exclusiveJunctionsP1=new HashSet<>();
+        this.exclusiveJunctionsP2=new HashSet<>();
+        this.inclusiveJunctionsP1.addAll(inclusiveJunctionsP1);
+        this.inclusiveJunctionsP2.addAll(inclusiveJunctionsP2);
+        this.exclusiveJunctionsP1.addAll(exclusiveJunctions);
     }
     
     public ASEvent(int type, Collection<Junction> inclusiveJunctions, Collection<Junction> exclusiveJunctions){
-        if(type!=2 && type!=3){
-            System.err.println("AS Event type error. This constructor is only for alternative 3'/5' end {2,3}.");
+        if(type!=2){
+            System.err.println("AS Event type error. This constructor is only for alternative 3'/5' end {2}.");
             System.exit(1);
         }
         this.inclusiveJunctionsP1=new HashSet<>();
         this.inclusiveJunctionsP2=new HashSet<>();
-        this.exclusiveJunctions=new HashSet<>();
+        this.exclusiveJunctionsP1=new HashSet<>();
+        this.exclusiveJunctionsP2=new HashSet<>();
         this.inclusiveJunctionsP1.addAll(inclusiveJunctionsP1);
-        this.exclusiveJunctions.addAll(exclusiveJunctions);
-    }
-    
-    public void addInclusiveJunction(Junction newIncluJunc){
-        inclusiveJunctionsP1.add(newIncluJunc);
-    }
-    
-    public void addExclusiveJunction(Junction newExcluJunc){
-        exclusiveJunctions.add(newExcluJunc);
+        this.exclusiveJunctionsP1.addAll(exclusiveJunctions);
     }
     
     public HashSet<Junction> getInclusiveJunctions(){
         HashSet<Junction> incluJuncsReturn=new HashSet<>();
         incluJuncsReturn.addAll(inclusiveJunctionsP1);
+        if(!inclusiveJunctionsP2.isEmpty()) incluJuncsReturn.addAll(inclusiveJunctionsP2);
         return(incluJuncsReturn);
     }
     
     public HashSet<Junction> getExclusiveJunctions(){
         HashSet<Junction> excluJuncsReturn=new HashSet<>();
-        excluJuncsReturn.addAll(exclusiveJunctions);
+        excluJuncsReturn.addAll(exclusiveJunctionsP1);
+        if(!exclusiveJunctionsP2.isEmpty()) excluJuncsReturn.addAll(exclusiveJunctionsP2);
         return(excluJuncsReturn);
     }
     
     public int getType(){
         return(type);
+    }
+    
+    public boolean containAll(Collection<Junction> juncs){
+        boolean answer=true;
+        for(Junction junc : juncs){
+            if(!inclusiveJunctionsP1.contains(junc) && exclusiveJunctionsP1.contains(junc) && !inclusiveJunctionsP2.contains(junc) && !exclusiveJunctionsP2.contains(junc)){
+                answer=false;
+                break;
+            }
+        }
+        return(answer);
     }
     
     @Override
@@ -82,8 +104,8 @@ public class ASEvent {
         for(Junction junc : asEvent.inclusiveJunctionsP1)
             if(!inclusiveJunctionsP1.contains(junc))
                 return(false);
-        for(Junction junc : asEvent.exclusiveJunctions)
-            if(!exclusiveJunctions.contains(junc))
+        for(Junction junc : asEvent.exclusiveJunctionsP1)
+            if(!exclusiveJunctionsP1.contains(junc))
                 return(false);
         return(true);
     }
@@ -93,7 +115,7 @@ public class ASEvent {
         int hash = 3;
         hash = 47 * hash + this.type;
         hash = 47 * hash + Objects.hashCode(this.inclusiveJunctionsP1);
-        hash = 47 * hash + Objects.hashCode(this.exclusiveJunctions);
+        hash = 47 * hash + Objects.hashCode(this.exclusiveJunctionsP1);
         return hash;
     }
 }

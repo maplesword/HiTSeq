@@ -86,7 +86,7 @@ public class JunctionSet {
                     juncInChrom.put(chrom, newJuncInChrom.get(chrom));
                 else{
                     for(Junction junc : newJuncInChrom.get(chrom)){
-                        Junction juncNoStrand=new Junction(junc.getID(), junc.getChrom(), "*", junc.getDonorSite(), junc.getAcceptorSite());
+                        Junction juncNoStrand=new Junction(junc.getID(), junc.getChrom(), "*", junc.getStartSite(), junc.getEndSite());
                         if(juncInChrom.get(chrom).contains(junc))
                             juncInChrom.get(chrom).remove(junc);
                         if(juncInChrom.get(chrom).contains(juncNoStrand))
@@ -305,7 +305,7 @@ public class JunctionSet {
                     
                     for(Iterator<String> it3=groupNames.iterator(); it3.hasNext(); ){
                         String group=it3.next();
-                        if(groupEnd.get(group) < junc.getDonorSite()){
+                        if(groupEnd.get(group) < junc.getStartSite()){
                             groupStart.remove(group);
                             groupEnd.remove(group);
                             groupStrand.remove(group);
@@ -327,8 +327,8 @@ public class JunctionSet {
                 if(addToGroups.isEmpty()){ // Add a new group
                     numGroups++;
                     String newGroupName="G"+String.format("%08d", numGroups);
-                    groupStart.put(newGroupName, junc.getDonorSite());
-                    groupEnd.put(newGroupName, junc.getAcceptorSite());
+                    groupStart.put(newGroupName, junc.getStartSite());
+                    groupEnd.put(newGroupName, junc.getEndSite());
                     groupStrand.put(newGroupName, junc.getStrand());
                     juncGroups.put(newGroupName, new HashSet<Junction>());
                     juncGroups.get(newGroupName).add(junc);
@@ -352,10 +352,10 @@ public class JunctionSet {
                         groupStrand.remove(group);
                     }
                     juncGroup.add(junc);
-                    if(jointGroupStart>junc.getDonorSite())
-                        jointGroupStart=junc.getDonorSite();
-                    if(jointGroupEnd<junc.getAcceptorSite())
-                        jointGroupEnd=junc.getAcceptorSite();
+                    if(jointGroupStart>junc.getStartSite())
+                        jointGroupStart=junc.getStartSite();
+                    if(jointGroupEnd<junc.getEndSite())
+                        jointGroupEnd=junc.getEndSite();
                     
                     groupStart.put(groupName, jointGroupStart);
                     groupEnd.put(groupName, jointGroupEnd);
@@ -418,8 +418,8 @@ public class JunctionSet {
             for(Iterator<Junction> it2=sortedJunctions.iterator(); it2.hasNext();){
                 Junction junc=it2.next();
                 String strand=junc.getStrand();
-                int donorSite=junc.getDonorSite();
-                int acceptorSite=junc.getAcceptorSite();
+                int donorSite=junc.getStartSite();
+                int acceptorSite=junc.getEndSite();
                 
                 if(outputGene){
                     HashSet<Gene> linkedGenes=junc.getAnnotatedGenes();
@@ -465,7 +465,7 @@ public class JunctionSet {
             
             for(Iterator<Junction> it2=sortedJunc.iterator(); it2.hasNext(); ){
                 Junction junc=it2.next();
-                System.out.println(group+"\t"+junc.getChrom()+"\t"+junc.getDonorSite()+"\t"+junc.getAcceptorSite()+"\t"+junc.getStrand());
+                System.out.println(group+"\t"+junc.getChrom()+"\t"+junc.getStartSite()+"\t"+junc.getEndSite()+"\t"+junc.getStrand());
             }
         }
     }

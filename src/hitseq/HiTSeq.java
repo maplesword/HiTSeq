@@ -487,7 +487,7 @@ public class HiTSeq {
                 String readNum="";
                 for(int i=firstSAMIndex; i<args.length; i++)
                     readNum=readNum+"\t"+String.valueOf(juncCount.get(junc).get(args[i]).intValue());
-                System.out.println(junc.getChrom()+"\t"+junc.getDonorSite()+"\t"+junc.getAcceptorSite()+"\t"+junc.getStrand()+readNum);
+                System.out.println(junc.getChrom()+"\t"+junc.getStartSite()+"\t"+junc.getEndSite()+"\t"+junc.getStrand()+readNum);
             }
         }
         
