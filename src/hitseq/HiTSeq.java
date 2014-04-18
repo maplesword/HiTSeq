@@ -4,6 +4,7 @@
  */
 package hitseq;
 
+import hitseq.annotation.ASEventSet;
 import hitseq.annotation.Annotation;
 import hitseq.annotation.Junction;
 import hitseq.annotation.JunctionSet;
@@ -501,7 +502,11 @@ public class HiTSeq {
             String pathJunctions=args[2];
             JunctionSet junctions=new JunctionSet(new File(pathJunctions), juncType);
             junctions.groupJuncSet();
-            junctions.outputJuncGroups();
+            System.err.println("done junction grouping");
+            //junctions.outputJuncGroups();
+            ASEventSet juncEvents=new ASEventSet(junctions);
+            System.err.println("done event generation");
+            juncEvents.outputASEventSet();
         }
     }
 }

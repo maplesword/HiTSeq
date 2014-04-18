@@ -61,7 +61,7 @@ public class ASEvent {
         this.inclusiveJunctionsP2=new HashSet<>();
         this.exclusiveJunctionsP1=new HashSet<>();
         this.exclusiveJunctionsP2=new HashSet<>();
-        this.inclusiveJunctionsP1.addAll(inclusiveJunctionsP1);
+        this.inclusiveJunctionsP1.addAll(inclusiveJunctions);
         this.exclusiveJunctionsP1.addAll(exclusiveJunctions);
     }
     
@@ -86,7 +86,7 @@ public class ASEvent {
     public boolean containAll(Collection<Junction> juncs){
         boolean answer=true;
         for(Junction junc : juncs){
-            if(!inclusiveJunctionsP1.contains(junc) && exclusiveJunctionsP1.contains(junc) && !inclusiveJunctionsP2.contains(junc) && !exclusiveJunctionsP2.contains(junc)){
+            if(!inclusiveJunctionsP1.contains(junc) && !exclusiveJunctionsP1.contains(junc) && !inclusiveJunctionsP2.contains(junc) && !exclusiveJunctionsP2.contains(junc)){
                 answer=false;
                 break;
             }
@@ -101,11 +101,25 @@ public class ASEvent {
         ASEvent asEvent=(ASEvent) event2;
         if(asEvent.type!=type)
             return(false);
+        if(asEvent.inclusiveJunctionsP1.size()!=inclusiveJunctionsP1.size())
+            return(false);
+        if(asEvent.exclusiveJunctionsP1.size()!=exclusiveJunctionsP1.size())
+            return(false);
+        if(asEvent.inclusiveJunctionsP2.size()!=inclusiveJunctionsP2.size())
+            return(false);
+        if(asEvent.exclusiveJunctionsP2.size()!=exclusiveJunctionsP2.size())
+            return(false);
         for(Junction junc : asEvent.inclusiveJunctionsP1)
             if(!inclusiveJunctionsP1.contains(junc))
                 return(false);
         for(Junction junc : asEvent.exclusiveJunctionsP1)
             if(!exclusiveJunctionsP1.contains(junc))
+                return(false);
+        for(Junction junc : asEvent.inclusiveJunctionsP2)
+            if(!inclusiveJunctionsP2.contains(junc))
+                return(false);
+        for(Junction junc : asEvent.exclusiveJunctionsP2)
+            if(!exclusiveJunctionsP2.contains(junc))
                 return(false);
         return(true);
     }
