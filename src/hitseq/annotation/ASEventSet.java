@@ -4,6 +4,9 @@
  */
 package hitseq.annotation;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.*;
 
 /**
@@ -125,7 +128,7 @@ public class ASEventSet {
                     if(incluRight.isEmpty()) continue;
                     
                     // output
-                    ASEvent event=new ASEvent(ASEvent.SKIPP_EXON, incluLeft, incluRight, excluList);
+                    ASEvent event=new ASEvent(group, ASEvent.SKIPP_EXON, incluLeft, incluRight, excluList);
                     events.add(event);
                     eventsInType.get(ASEvent.SKIPP_EXON).add(event);
                     eventsInTypeThisGroup.get(ASEvent.SKIPP_EXON).add(event);
@@ -184,33 +187,23 @@ public class ASEventSet {
             eventsInTypeThisGroup.add(new ArrayList<ASEvent>());
             if(juncGroups.get(group).size()>1 && sortedJunctionsGroup.size()*2!=sortedJunctionCoord.size()){
                 // first check start-shared junctions
-                int i=0;
-                ArrayList<Junction> juncShareStart=new ArrayList<>();
-                while(i<sortedJunctionsGroup.size()){
-                    if(juncShareStart.isEmpty()){
-                        juncShareStart.add(sortedJunctionsGroup.get(i));
-                        i++;
-                        continue;
-                    }
-                    else if(juncShareStart.get(0).withStartSite(sortedJunctionsGroup.get(i).getStartSite())){
-                        juncShareStart.add(sortedJunctionsGroup.get(i));
-                        i++;
-                        if(i!=sortedJunctionsGroup.size())
-                            continue;
-                        else
-                            i--;
-                    }
-                    
-                    if(juncShareStart.size()>1)
-                        for(int j1=0; j1<juncShareStart.size()-1; j1++)
-                            for(int j2=j1+1; j2<juncShareStart.size(); j2++){
+                HashMap<Integer, ArrayList<Junction>> startOfJuncs=new HashMap<>();
+                for(int i=0; i<sortedJunctionsGroup.size(); i++){
+                    if(!startOfJuncs.containsKey(sortedJunctionsGroup.get(i).getStartSite()))
+                        startOfJuncs.put(sortedJunctionsGroup.get(i).getStartSite(), new ArrayList<Junction>());
+                    startOfJuncs.get(sortedJunctionsGroup.get(i).getStartSite()).add(sortedJunctionsGroup.get(i));
+                }
+                for(ArrayList<Junction> juncsWithThisStart : startOfJuncs.values()){    
+                    if(juncsWithThisStart.size()>1)
+                        for(int j1=0; j1<juncsWithThisStart.size()-1; j1++)
+                            for(int j2=j1+1; j2<juncsWithThisStart.size(); j2++){
                                 ArrayList<Junction> candidates=new ArrayList<>();
-                                candidates.add(juncShareStart.get(j1));candidates.add(juncShareStart.get(j2));
+                                candidates.add(juncsWithThisStart.get(j1));candidates.add(juncsWithThisStart.get(j2));
 
                                 // check whether these two junctions are already involved in other SE/MXE(before merge) events
                                 boolean involved=false;
                                 for(ASEvent event : eventsInTypeThisGroup.get(ASEvent.SKIPP_EXON))
-                                    if(event.containAll(candidates) && !event.getInclusiveJunctions().containsAll(candidates)){
+                                    if(event.containsAll(candidates) && !event.getAllInclusiveJunctions().containsAll(candidates)){
                                         involved=true;
                                         break;
                                     }
@@ -226,34 +219,31 @@ public class ASEventSet {
                                     ArrayList<Junction> newEventExclu=new ArrayList<>();
                                     newEventInclu.add(candidates.get(0));
                                     newEventExclu.add(candidates.get(1));
-                                    ASEvent newEvent=new ASEvent(ASEvent.ALT_END, newEventInclu, newEventExclu);
+                                    ASEvent newEvent=new ASEvent(group, ASEvent.ALT_END, newEventInclu, newEventExclu);
                                     events.add(newEvent);
                                     eventsInType.get(ASEvent.ALT_END).add(newEvent);
                                     eventsInTypeThisGroup.get(ASEvent.ALT_END).add(newEvent);
                                 }
                             }
-
-                    juncShareStart.clear();
-                    i++;
                 }
                 
                 // second check end-shared junctions
                 HashMap<Integer, ArrayList<Junction>> endOfJuncs=new HashMap<>();
-                for(i=0; i<sortedJunctionsGroup.size(); i++){
+                for(int i=0; i<sortedJunctionsGroup.size(); i++){
                     if(!endOfJuncs.containsKey(sortedJunctionsGroup.get(i).getEndSite()))
                         endOfJuncs.put(sortedJunctionsGroup.get(i).getEndSite(), new ArrayList<Junction>());
                     endOfJuncs.get(sortedJunctionsGroup.get(i).getEndSite()).add(sortedJunctionsGroup.get(i));
                 }
                 for(ArrayList<Junction> juncsWithThisEnd : endOfJuncs.values()){
                     if(juncsWithThisEnd.size()>1){
-                        for(i=0; i<juncsWithThisEnd.size()-1; i++){
+                        for(int i=0; i<juncsWithThisEnd.size()-1; i++)
                             for(int j=i+1; j<juncsWithThisEnd.size(); j++){
                                 ArrayList<Junction> candidates=new ArrayList<>();
                                 
                                 candidates.add(juncsWithThisEnd.get(i)); candidates.add(juncsWithThisEnd.get(j));
                                 boolean involved=false;
                                 for(ASEvent event : eventsInTypeThisGroup.get(ASEvent.SKIPP_EXON))
-                                    if(event.containAll(candidates) && !event.getInclusiveJunctions().containsAll(candidates)){
+                                    if(event.containsAll(candidates) && !event.getAllInclusiveJunctions().containsAll(candidates)){
                                         involved=true;
                                         break;
                                     }
@@ -269,13 +259,12 @@ public class ASEventSet {
                                     ArrayList<Junction> newEventExclu=new ArrayList<>();
                                     newEventInclu.add(candidates.get(0));
                                     newEventExclu.add(candidates.get(1));
-                                    ASEvent newEvent=new ASEvent(ASEvent.ALT_END, newEventInclu, newEventExclu);
+                                    ASEvent newEvent=new ASEvent(group, ASEvent.ALT_END, newEventInclu, newEventExclu);
                                     events.add(newEvent);
                                     eventsInType.get(ASEvent.ALT_END).add(newEvent);
                                     eventsInTypeThisGroup.get(ASEvent.ALT_END).add(newEvent);
                                 }
                             }
-                        }
                     }
                 }
             }
@@ -303,7 +292,7 @@ public class ASEventSet {
                                 numJuncsCompatible++;
                             else if(juncsEvent2.get(idx).getStartSite()<juncsEvent1.get(idx).getStartSite() && juncsEvent1.get(idx).getEndSite()<juncsEvent2.get(idx).getEndSite())
                                 numJuncsCompatible++;
-                            else{
+                            else if(juncsEvent1.get(idx).withStartSite(juncsEvent2.get(idx).getStartSite()) || juncsEvent1.get(idx).withEndSite(juncsEvent2.get(idx).getEndSite())){                               
                                 ArrayList<Junction> incluCheck=new ArrayList<>();
                                 ArrayList<Junction> excluCheck=new ArrayList<>();
                                 if(juncsEvent1.get(idx).compareTo(juncsEvent2.get(idx))<0){
@@ -313,7 +302,7 @@ public class ASEventSet {
                                     incluCheck.add(juncsEvent2.get(idx));
                                     excluCheck.add(juncsEvent1.get(idx));
                                 }
-                                ASEvent check=new ASEvent(ASEvent.ALT_END, incluCheck, excluCheck);
+                                ASEvent check=new ASEvent(group, ASEvent.ALT_END, incluCheck, excluCheck);
                                 if(eventsInTypeThisGroup.get(ASEvent.ALT_END).contains(check))
                                     numJuncsCompatible++;
                             }
@@ -323,13 +312,6 @@ public class ASEventSet {
                     }
                 }
             }
-            
-            /*for(int i=0;i<merged.length;i++){
-                String output="";
-                for(int j=0;j<merged[i].length;j++)
-                    output+=merged[i][j]+"\t";
-                System.err.println(output);
-            }*/
             
             // secondly, based on the boolean matrix, start merging
             ArrayList<Integer> remainingUnmergedMXEIdx=new ArrayList<>();
@@ -388,7 +370,7 @@ public class ASEventSet {
                         if(!excluP2.contains(juncEvent.get(3))) excluP2.add(juncEvent.get(3));
                     }
                     
-                    ASEvent newEvent=new ASEvent(ASEvent.MUTUAL_EXCL, incluP1, incluP2, excluP1, excluP2);
+                    ASEvent newEvent=new ASEvent(group, ASEvent.MUTUAL_EXCL, incluP1, incluP2, excluP1, excluP2);
                     eventsInType.get(ASEvent.MUTUAL_EXCL).add(newEvent);
                     eventsInTypeThisGroup.get(ASEvent.MUTUAL_EXCL).add(newEvent);
                     events.add(newEvent);
@@ -400,6 +382,78 @@ public class ASEventSet {
             for(int i=0; i<eventsInTypeThisGroup.size(); i++)
                 eventsInTypeInGroup.get(i).put(group, eventsInTypeThisGroup.get(i));
         }
+    }
+    
+    public ASEventSet(File file){
+        ArrayList<String> eventType=new ArrayList<>();
+        eventType.add("SKIPPED_EXON");eventType.add("MUTUAL_EXCLU_EXON");eventType.add("ALT_END");
+        
+        events=new HashSet<>();
+        eventsInType=new ArrayList<>();
+        eventsInTypeInGroup=new ArrayList<>();
+        for(int i=0; i<3; i++){
+            eventsInType.add(new ArrayList<ASEvent>());
+            eventsInTypeInGroup.add(new HashMap<String, ArrayList<ASEvent>>());
+        }
+        
+        int numLines=0;
+        try{
+            RandomAccessFile fileIn=new RandomAccessFile(file,"r");
+            String line;
+            while((line=fileIn.readLine()) != null){ // deal with each line separately
+                numLines++;
+                if(line.startsWith("#"))
+                    continue;
+                String[] elements=line.split("\t");
+                
+                String group=elements[0];
+                int type=eventType.indexOf(elements[1]);
+                if(type==-1){
+                    System.err.println("Invalid AS event type: "+elements[1]+" at line "+numLines+". Should be one of 'SKIPPED_EXON', 'MUTUAL_EXCLU_EXON' and 'ALT_END'.");
+                    continue;
+                }
+                
+                ArrayList<ArrayList<Junction>> juncsForEvent=new ArrayList<>();
+                for(int i=2; i<6; i++){
+                    juncsForEvent.add(new ArrayList<Junction>());
+                    if(elements[i].equals("NA")) continue;
+                    
+                    String[] juncs=elements[i].split(";");
+                    for(String junc : juncs){
+                        String[] info=junc.split(":");
+                        String chrom=info[0]; String strand=info[1];
+                        String[] coords=info[2].split("-");
+                        Junction newJunc=new Junction(chrom, strand, Integer.parseInt(coords[0]), Integer.parseInt(coords[1]));
+                        juncsForEvent.get(i-2).add(newJunc);
+                    }
+                }
+                
+                ASEvent newEvent;
+                if(type==ASEvent.SKIPP_EXON)
+                    newEvent=new ASEvent(group, type, juncsForEvent.get(0), juncsForEvent.get(1), juncsForEvent.get(2));
+                else if(type==ASEvent.MUTUAL_EXCL)
+                    newEvent=new ASEvent(group, type, juncsForEvent.get(0), juncsForEvent.get(1), juncsForEvent.get(2), juncsForEvent.get(3));
+                else
+                    newEvent=new ASEvent(group, type, juncsForEvent.get(0), juncsForEvent.get(2));
+                
+                events.add(newEvent);
+                eventsInType.get(type).add(newEvent);
+                if(!eventsInTypeInGroup.get(type).containsKey(group))
+                    eventsInTypeInGroup.get(type).put(group, new ArrayList<ASEvent>());
+                eventsInTypeInGroup.get(type).get(group).add(newEvent);
+            }
+        }
+        catch(IOException | NumberFormatException e){
+            System.err.println("Error! "+e+" when generating ASEventSet with File: "+file+".");
+            System.exit(1);
+        }
+    }
+    
+    public HashMap<ASEvent, ArrayList<Double>> quantifyInclusion(HashMap<Junction,Double> juncsCounts){
+        HashMap<ASEvent, ArrayList<Double>> answer=new HashMap<>();
+        for(ASEvent event : events)
+            answer.put(event, event.countInclusion(juncsCounts));
+        return(answer);
     }
     
     public void outputASEventSet(){
@@ -416,35 +470,28 @@ public class ASEventSet {
             for(Iterator<String> it1=sortedGroups.iterator(); it1.hasNext(); ){
                 String group=it1.next();
                 for(ASEvent event : eventsInTypeInGroup.get(i).get(group)){
-                    TreeSet<Junction> sortedIncluJuncs=new TreeSet<>(new Comparator<Junction>(){
-                        @Override
-                        public int compare(Junction arg0, Junction arg1) {
-                            return(arg0.compareTo(arg1));
-                        }
-                    });
-                    sortedIncluJuncs.addAll(event.getInclusiveJunctions());
-                    String inclus="";
-                    for(Iterator<Junction> it=sortedIncluJuncs.iterator(); it.hasNext();){
-                        Junction junc=it.next();
-                        inclus+=junc.toString()+";";
-                    }
-
-                    TreeSet<Junction> sortedExcluJuncs=new TreeSet<>(new Comparator<Junction>(){
-                    @Override
-                    public int compare(Junction arg0, Junction arg1){
-                        return(arg0.compareTo(arg1));
-                    }
-                    });
-                    sortedExcluJuncs.addAll(event.getExclusiveJunctions());
-                    String exclus="";
-                    for(Iterator<Junction> it=sortedExcluJuncs.iterator(); it.hasNext();){
-                        Junction junc=it.next();
-                        exclus+=junc.toString()+";";
-                    }
-
-                    System.out.println(group+"\t"+typeName[i]+"\t"+inclus+"\t"+exclus);
+                    System.out.println(event.toString());
                 }
             }
         }
+    }
+    
+    public ArrayList<HashMap<String, ArrayList<ASEvent>>> getEventsInTypeInGroups(){
+        ArrayList<HashMap<String, ArrayList<ASEvent>>> answer=new ArrayList<>();
+        for(int i=0; i<3; i++){
+            answer.add(new HashMap<String, ArrayList<ASEvent>>());
+            for(String group : eventsInTypeInGroup.get(i).keySet()){
+                ArrayList<ASEvent> eventsThisGroup=new ArrayList<>();
+                eventsThisGroup.addAll(eventsInTypeInGroup.get(i).get(group));
+                answer.get(i).put(group, eventsThisGroup);
+            }
+        }
+        return(answer);
+    }
+    
+    public HashSet<ASEvent> getAllEvents(){
+        HashSet<ASEvent> answer=new HashSet<>();
+        answer.addAll(events);
+        return(answer);
     }
 }

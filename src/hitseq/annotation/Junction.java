@@ -74,6 +74,10 @@ public class Junction {
         return(endSite);
     }
     
+    public int getSize(){
+        return(endSite-startSite+1);
+    }
+    
     public HashSet<Gene> getAnnotatedGenes(){
         return((HashSet<Gene>) annotatedGenes.clone());
     }

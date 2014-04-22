@@ -61,6 +61,33 @@ public class JunctionSet {
     }
     
     /**
+     * Given an AS event set, generate a JunctionSet object including all junctions in the AS event set
+     * @param eventSet 
+     */
+    public JunctionSet(ASEventSet eventSet){
+        ArrayList<HashMap<String, ArrayList<ASEvent>>> allEventsInGroups=eventSet.getEventsInTypeInGroups();
+        for(int type=0; type<allEventsInGroups.size(); type++)
+            for(String group : allEventsInGroups.get(type).keySet()){
+                if(!juncGroups.containsKey(group))
+                    juncGroups.put(group, new HashSet<Junction>());
+                for(ASEvent event : allEventsInGroups.get(type).get(group)){
+                    HashSet<Junction> incluJuncs=event.getAllInclusiveJunctions();
+                    HashSet<Junction> excluJuncs=event.getAllExclusiveJunctions();
+                    ArrayList<Junction> allJuncs=new ArrayList<>();
+                    allJuncs.addAll(incluJuncs);
+                    allJuncs.addAll(excluJuncs);
+                    String chrom=allJuncs.get(0).getChrom();
+                    
+                    if(!juncInChrom.containsKey(chrom))
+                        juncInChrom.put(chrom, new HashSet<Junction>());
+                    
+                    juncInChrom.get(chrom).addAll(allJuncs);
+                    juncGroups.get(group).addAll(allJuncs);
+                }
+            }
+    }
+    
+    /**
      * FunName: addJunctionSet.
      * Description: The method to add additional junctions in the given file to the junction set.
      * The existed undirected junctions would be replaced if directed junctions with the same coordinate are available in the new set.
@@ -373,8 +400,11 @@ public class JunctionSet {
      */
     public HashMap<String, HashSet<Junction>> getJunctions(){
         HashMap<String, HashSet<Junction>> juncReturn=new HashMap<>();
-        for(String chrom : juncInChrom.keySet())
-            juncReturn.put(chrom, (HashSet<Junction>) juncInChrom.get(chrom).clone());
+        for(String chrom : juncInChrom.keySet()){
+            HashSet<Junction> juncs=new HashSet<>();
+            juncs.addAll(juncInChrom.get(chrom));
+            juncReturn.put(chrom, juncs);
+        }
         return(juncReturn);
     }
     
@@ -387,8 +417,11 @@ public class JunctionSet {
         if(juncGroups.isEmpty())
             return(null);
         HashMap<String, HashSet<Junction>> juncGroupReturn=new HashMap<>();
-        for(String group : juncGroups.keySet())
-            juncGroupReturn.put(group, (HashSet<Junction>)juncGroups.get(group).clone());
+        for(String group : juncGroups.keySet()){
+            HashSet<Junction> juncs=new HashSet<>();
+            juncs.addAll(juncGroups.get(group));
+            juncGroupReturn.put(group, juncs);
+        }
         return(juncGroupReturn);
     }
     

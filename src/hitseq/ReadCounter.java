@@ -498,7 +498,7 @@ public class ReadCounter {
                                     else
                                         junctionCounts.put(juncPos, add);
                                 } else if(juncListChrom.get(chrom).contains(juncNeg) && !juncListChrom.get(chrom).contains(juncPos)){
-                                    if(junctionCounts.containsKey(juncPos))
+                                    if(junctionCounts.containsKey(juncNeg))
                                         junctionCounts.put(juncNeg, junctionCounts.get(juncNeg)+add);
                                     else
                                         junctionCounts.put(juncNeg, add);

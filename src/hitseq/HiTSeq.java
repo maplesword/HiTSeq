@@ -4,6 +4,7 @@
  */
 package hitseq;
 
+import hitseq.annotation.ASEvent;
 import hitseq.annotation.ASEventSet;
 import hitseq.annotation.Annotation;
 import hitseq.annotation.Junction;
@@ -34,6 +35,8 @@ public class HiTSeq {
                     + "           uniq       Extract uniquely mapped reads from the input alignment\n"
                     + "           gtf2struc  Transform GTF annotation into struc format\n"
                     + "           tojuncs    Combine and transform junction list(s) into a junction list in 'juncs' format\n"
+                    + "           togroup    Combine the junction list(s) and group junctions according to their coordinates\n"
+                    + "           toevents   Combine the junction list(s) and generate alternative splicing events\n"
                     + "           countjunc  Given junction list in junc/bed/gtf format, output table of read count of each junction for the input alignments\n");
             System.exit(0);
         }
@@ -286,11 +289,11 @@ public class HiTSeq {
             Annotation annotation=new Annotation(new File(pathAnnotation), "gtf");
             annotation.outputInStruc();
         }
-        else if(cmd.equalsIgnoreCase("tojuncs")){
+        else if(cmd.equalsIgnoreCase("tojuncs") || cmd.equalsIgnoreCase("toevents") || cmd.equalsIgnoreCase("togroup")){
             if(args.length==1 || args[1].equals("-h")){
-                System.err.println("\nThis is the help of 'tojuncs' command of HiTSeq.");
-                System.err.println("Usage: java -jar HiTSeq.jar tojuncs [options] <in.file> [in2.file ...]\n"
-                        + "   Or: HiTSeq.sh tojunc [options] <in.file> [in2.file ...]");
+                System.err.println("\nThis is the help of '"+cmd+"' command of HiTSeq.");
+                System.err.println("Usage: java -jar HiTSeq.jar "+cmd+" [options] <in.file> [in2.file ...]\n"
+                        + "   Or: HiTSeq.sh "+cmd+" [options] <in.file> [in2.file ...]");
                 System.err.println("\n"
                         + "Options: -h        This help page\n"
                         + "         -a [str]  The file type of junction annotation file (default: juncs format)\n"
@@ -360,19 +363,34 @@ public class HiTSeq {
                 else
                     junctions.addJunctionSet(new File(pathBed), fileType);
             }
-            junctions.outputInJuncs(true); 
+            
+            if(cmd.equalsIgnoreCase("tojuncs"))
+                junctions.outputInJuncs(true);
+            else if(cmd.equalsIgnoreCase("togroup")){
+                junctions.groupJuncSet();
+                junctions.outputJuncGroups();
+            } else{
+                junctions.groupJuncSet();
+                System.err.println("done junction grouping");
+                //junctions.outputJuncGroups();
+                ASEventSet juncEvents=new ASEventSet(junctions);
+                System.err.println("done event generation");
+                juncEvents.outputASEventSet();
+            }
         }
+        
         else if(cmd.equalsIgnoreCase("countjunc")){
             if(args.length==1 || args[1].equals("-h")){
-                System.err.println("\nThis is the help of 'countjunc' command of HiTSeq.");
-                System.err.println("Usage: java -jar HiTSeq.jar countjunc [options] <junc.file> <in.bam> [in2.bam ...]\n"
-                        + "   Or: HiTSeq.sh countjunc [options] <junc.file> <in.bam> [in2.bam ...]");
+                System.err.println("\nThis is the help of '"+cmd+"' command of HiTSeq.");
+                System.err.println("Usage: java -jar HiTSeq.jar "+cmd+" [options] <junc.file> <in.bam> [in2.bam ...]\n"
+                        + "   Or: HiTSeq.sh "+cmd+" [options] <junc.file> <in.bam> [in2.bam ...]");
                 System.err.println("\n"
                         + "Options: -h        This help page\n"
                         + "         -a [str]  The file type of junction annotation file (default: juncs format)\n"
                         + "         -n        For reads mapped to n-loci, only assign 1/n read to each hit\n"
                         + "         -c        Do read collapse to remove PCR duplicates\n"
-                        + "         -s [int]  Strandedness of BAM/SAM input (default: 0 [no strand information]; 1/-1 [same/opposite strandness]; only work with '-a bam')\n");
+                        + "         -s [int]  Strandedness of BAM/SAM input (default: 0 [no strand information]; 1/-1 [same/opposite strandness]; only work with '-a bam')\n"
+                        + "         -e        Output the counting for events instead of junctions\n");
                 System.exit(0);
             }
             
@@ -380,6 +398,7 @@ public class HiTSeq {
             int strandSpecific=0;
             boolean considerNH=false;
             boolean readCollapse=false;
+            boolean outputForEvents=false;
             
             int firstSAMIndex=1;
             while(true){
@@ -427,6 +446,9 @@ public class HiTSeq {
                                     System.exit(0);
                                 }
                                 break;
+                            case "e":
+                                outputForEvents=true;
+                                break;
                             default:
                                 System.err.println("\nParameter error. No parameter "+option+"\n");
                                 break;
@@ -439,16 +461,34 @@ public class HiTSeq {
                     break;
             }
             
+            // generate junction set and AS event set
             String pathJunctions=args[firstSAMIndex];
-            JunctionSet junctions=new JunctionSet(new File(pathJunctions), juncType);
+            JunctionSet junctions;
+            ASEventSet events;
+            if(!juncType.equals("event")){
+                junctions=new JunctionSet(new File(pathJunctions), juncType);
+                events=new ASEventSet(junctions);
+            }
+            else{
+                events=new ASEventSet(new File(pathJunctions));
+                junctions=new JunctionSet(events);
+            }
+            System.err.println("done reading junction set...");
+            
             HashMap<String, Double> totalNumMappedReads=new HashMap<>();
             HashMap<Junction, HashMap<String, Double>> juncCount=new HashMap<>();
+            HashMap<ASEvent, HashMap<String, ArrayList<Double>>> eventCount=new HashMap<>();
             for(String chrom : junctions.getJunctions().keySet())
                 for(Junction junc : junctions.getJunctions().get(chrom))
                     juncCount.put(junc, new HashMap<String, Double>());
-            firstSAMIndex++;
-            System.err.println("done reading junction set...");
+            if(outputForEvents)
+                for(ASEvent event : events.getAllEvents())
+                    eventCount.put(event, new HashMap<String, ArrayList<Double>>());
             
+            firstSAMIndex++;
+            
+            System.err.println("start counting...");
+            // start reading SAM/BAM files
             for(int i=firstSAMIndex; i<args.length; i++){
                 String pathMapping=args[i];
                 File mappingFile=new File(pathMapping);
@@ -461,34 +501,67 @@ public class HiTSeq {
                     juncCount.get(junc).put(args[i], count.get(junc));
                 totalNumMappedReads.put(args[i], counter.getTotalNumReads());
                 
+                if(outputForEvents){
+                    HashMap<ASEvent, ArrayList<Double>> countEvents=events.quantifyInclusion(count);
+                    for(ASEvent event : countEvents.keySet())
+                        eventCount.get(event).put(args[i], countEvents.get(event));
+                }
+                
                 System.err.println("done "+args[i]+"\n");
             }
             
-            String header="JUNC_CHROM\tJUNC_START\tJUNC_END\tJUNC_STRAND";
-            for(int i=firstSAMIndex; i<args.length; i++)
-                header=header+"\t"+args[i];
-            System.out.println(header);
-            
-            java.util.TreeSet<Junction> sortedJunctions=new java.util.TreeSet<>(new java.util.Comparator<Junction>() {
-                @Override
-                public int compare(Junction o1, Junction o2) {
-                    return o1.compareTo(o2);
-                }
-            });
-            
-            String totalReads=String.valueOf(totalNumMappedReads.get(args[firstSAMIndex]).intValue());
-            if(args.length>firstSAMIndex+1)
-                for(int i=firstSAMIndex+1; i<args.length; i++)
-                    totalReads=totalReads+"\t"+String.valueOf(totalNumMappedReads.get(args[i]).intValue());
-            System.out.println("TOTAL_READS\tNA\tNA\tNA\t"+totalReads);
-
-            sortedJunctions.addAll(juncCount.keySet());
-            for (Iterator<Junction> it = sortedJunctions.iterator(); it.hasNext();) {
-                Junction junc = it.next();
-                String readNum="";
+            // output
+            if(outputForEvents){
+                String header="GROUP\tEVENT_TYPE\tINCLU_LEFT\tINCLU_RIGHT\tEXCLU_LEFT\tEXCLU_RIGHT";
                 for(int i=firstSAMIndex; i<args.length; i++)
-                    readNum=readNum+"\t"+String.valueOf(juncCount.get(junc).get(args[i]).intValue());
-                System.out.println(junc.getChrom()+"\t"+junc.getStartSite()+"\t"+junc.getEndSite()+"\t"+junc.getStrand()+readNum);
+                    header=header+"\tINCLU:"+args[i]+"\tEXCLU:"+args[i];
+                System.out.println(header);
+                
+                java.util.TreeSet<ASEvent> sortedEvents=new java.util.TreeSet<>(new java.util.Comparator<ASEvent>(){
+                    @Override
+                    public int compare(ASEvent arg0, ASEvent arg1) {
+                        return(arg0.compareTo(arg1));
+                    }
+                });
+                sortedEvents.addAll(eventCount.keySet());
+                
+                for(Iterator<ASEvent> it=sortedEvents.iterator(); it.hasNext();){
+                    ASEvent event=it.next();
+                    String info=event.toString();
+                    String readNum="";
+                    for(int i=firstSAMIndex; i<args.length; i++){
+                        ArrayList<Double> nums=eventCount.get(event).get(args[i]);
+                        readNum+="\t"+nums.get(0).intValue()+"\t"+nums.get(1).intValue();
+                    }
+                    System.out.println(info+readNum);
+                }
+            } else{
+                String header="JUNC_CHROM\tJUNC_START\tJUNC_END\tJUNC_STRAND";
+                for(int i=firstSAMIndex; i<args.length; i++)
+                    header=header+"\t"+args[i];
+                System.out.println(header);
+
+                java.util.TreeSet<Junction> sortedJunctions=new java.util.TreeSet<>(new java.util.Comparator<Junction>() {
+                    @Override
+                    public int compare(Junction o1, Junction o2) {
+                        return o1.compareTo(o2);
+                    }
+                });
+
+                String totalReads=String.valueOf(totalNumMappedReads.get(args[firstSAMIndex]).intValue());
+                if(args.length>firstSAMIndex+1)
+                    for(int i=firstSAMIndex+1; i<args.length; i++)
+                        totalReads=totalReads+"\t"+String.valueOf(totalNumMappedReads.get(args[i]).intValue());
+                System.out.println("TOTAL_READS\tNA\tNA\tNA\t"+totalReads);
+
+                sortedJunctions.addAll(juncCount.keySet());
+                for (Iterator<Junction> it = sortedJunctions.iterator(); it.hasNext();) {
+                    Junction junc = it.next();
+                    String readNum="";
+                    for(int i=firstSAMIndex; i<args.length; i++)
+                        readNum=readNum+"\t"+String.valueOf(juncCount.get(junc).get(args[i]).intValue());
+                    System.out.println(junc.getChrom()+"\t"+junc.getStartSite()+"\t"+junc.getEndSite()+"\t"+junc.getStrand()+readNum);
+                }
             }
         }
         
