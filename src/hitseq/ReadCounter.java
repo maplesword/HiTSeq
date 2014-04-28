@@ -452,10 +452,6 @@ public class ReadCounter {
                 if(java.lang.Math.ceil(totalNumReads)%1000000==0)
                     System.err.println("reading reads "+(int)java.lang.Math.ceil(totalNumReads)+"...");
                 
-                // skip reads to unannotated chromosomes
-                if(!juncListChrom.containsKey(chrom))
-                    continue;
-                
                 // determine junction strand
                 strand="*";
                 if(strandSpecific==1)
@@ -477,6 +473,12 @@ public class ReadCounter {
                     if(element.getOperator().consumesReferenceBases()){
                         int thisBlockEnd=lastBlockEnd+element.getLength();
                         if(element.getOperator().equals(CigarOperator.N)){
+                            containJunction=true;
+                            
+                            // skip reads to unannotated chromosomes
+                            if(!juncListChrom.containsKey(chrom))
+                                break;
+                            
                             Junction junc=new Junction(chrom, strand, lastBlockEnd, thisBlockEnd+1);
                             // count it only the junction is in the junction list with the correct strand.
                             if(juncListChrom.get(chrom).contains(junc)){ 
@@ -504,15 +506,17 @@ public class ReadCounter {
                                         junctionCounts.put(juncNeg, add);
                                 }
                             }
-                            
-                            containJunction=true;
                         }
                         lastBlockEnd=thisBlockEnd;
                     }
                 }
                 
-                if(containJunction)
+                if(containJunction){
                     numJuncReads+=add;
+                    //System.err.println(numJuncReads);
+                } else{
+                    //System.err.println(record.getReadName()+"\t"+record.getCigarString());
+                }
             }
         }
         catch(Exception e){

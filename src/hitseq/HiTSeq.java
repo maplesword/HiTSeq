@@ -464,30 +464,37 @@ public class HiTSeq {
             // generate junction set and AS event set
             String pathJunctions=args[firstSAMIndex];
             JunctionSet junctions;
-            ASEventSet events;
+            ASEventSet events=null;
             if(!juncType.equals("event")){
                 junctions=new JunctionSet(new File(pathJunctions), juncType);
-                events=new ASEventSet(junctions);
+                System.err.println("done reading junction set.");
+                if(outputForEvents){
+                    events=new ASEventSet(junctions);
+                    System.err.println("done generating event set.");
+                }
             }
             else{
                 events=new ASEventSet(new File(pathJunctions));
+                System.err.println("done reading event set.");
                 junctions=new JunctionSet(events);
+                System.err.println("done generating junction set.");
             }
-            System.err.println("done reading junction set...");
             
             HashMap<String, Double> totalNumMappedReads=new HashMap<>();
             HashMap<Junction, HashMap<String, Double>> juncCount=new HashMap<>();
             HashMap<ASEvent, HashMap<String, ArrayList<Double>>> eventCount=new HashMap<>();
-            for(String chrom : junctions.getJunctions().keySet())
+            for(String chrom : junctions.getJunctions().keySet()){
+                System.err.println("initializing counting data for chromosome: "+chrom);
                 for(Junction junc : junctions.getJunctions().get(chrom))
                     juncCount.put(junc, new HashMap<String, Double>());
+            }
             if(outputForEvents)
                 for(ASEvent event : events.getAllEvents())
                     eventCount.put(event, new HashMap<String, ArrayList<Double>>());
             
             firstSAMIndex++;
             
-            System.err.println("start counting...");
+            System.err.println("\nstart counting...");
             // start reading SAM/BAM files
             for(int i=firstSAMIndex; i<args.length; i++){
                 String pathMapping=args[i];

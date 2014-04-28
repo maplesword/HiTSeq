@@ -22,12 +22,18 @@ public class ASEventSet {
         if(junctions.getJunctionGroups()==null)
             junctions.groupJuncSet();
         HashMap<String, HashSet<Junction>> juncGroups=junctions.getJunctionGroups();
+        System.err.println("done junction grouping: "+juncGroups.size()+" groups");
         
         events=new HashSet<>();
         eventsInType=new ArrayList<>();
         eventsInTypeInGroup=new ArrayList<>();
         
+        int numDoneGroup=0;
         for(String group : juncGroups.keySet()){
+            numDoneGroup++;
+            if(numDoneGroup%10000==0)
+                System.err.println("has processed "+numDoneGroup+" groups...");
+            
             // if there is only one junction in the group, skip it
             if(juncGroups.get(group).size()<2)
                 continue;
@@ -457,7 +463,6 @@ public class ASEventSet {
     }
     
     public void outputASEventSet(){
-        String[] typeName={"SKIPPED_EXON","MUTUAL_EXCLU_EXON","ALT_END"};
         for(int i=0; i<eventsInTypeInGroup.size(); i++){
             TreeSet<String> sortedGroups=new TreeSet<>(new Comparator<String>(){
                 @Override
