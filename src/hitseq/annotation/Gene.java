@@ -81,6 +81,7 @@ public class Gene {
             for(int i=0; i<transcripts.get(transcriptID).getExonNumber(); i++)
                 nonredundantTranscript.addExon(transcripts.get(transcriptID).getExon(i));
         nonredundantTranscript.mergeExons();
+        refreshStartAndEnd();
     }
     
     /**
@@ -185,5 +186,10 @@ public class Gene {
     @Override
     public String toString(){
         return(id);
+    }
+    
+    private void refreshStartAndEnd(){
+        start=nonredundantTranscript.getStart();
+        end=nonredundantTranscript.getEnd();
     }
 }

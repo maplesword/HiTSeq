@@ -101,6 +101,12 @@ public class Transcript {
             for(Exon exon : exons)
                 length+=exon.getLength();
         }
+        
+        int numOfExons=exons.size();
+        if(numOfExons>0){
+            this.start=exons.get(0).getStart();
+            this.end=exons.get(numOfExons-1).getEnd();
+        }
     }
     
     public String getID(){

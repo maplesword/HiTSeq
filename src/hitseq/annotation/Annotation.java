@@ -337,8 +337,8 @@ public class Annotation {
         return genesInChrom.containsKey(chrom);
     }
     
-    public String[] getAvailableChromosomes(){
-        return (String[])genesInChrom.keySet().toArray();
+    public java.util.Set<String> getAvailableChromosomes(){
+        return genesInChrom.keySet();
     }
     
     public String[] getGeneSet(){
