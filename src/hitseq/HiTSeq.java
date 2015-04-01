@@ -35,7 +35,6 @@ public class HiTSeq {
                     + "           uniq       Extract uniquely mapped reads from the input alignment\n"
                     + "           gtf2struc  Transform GTF annotation into struc format\n"
                     + "           tojuncs    Combine and transform junction list(s) into a junction list in 'juncs' format\n"
-                    + "           togroup    Combine the junction list(s) and group junctions according to their coordinates\n"
                     + "           toevents   Combine the junction list(s) and generate alternative splicing events\n"
                     + "           countjunc  Given junction list in junc/bed/gtf format, output table of read count of each junction for the input alignments\n");
             System.exit(0);
@@ -289,7 +288,7 @@ public class HiTSeq {
             Annotation annotation=new Annotation(new File(pathAnnotation), "gtf");
             annotation.outputInStruc();
         }
-        else if(cmd.equalsIgnoreCase("tojuncs") || cmd.equalsIgnoreCase("toevents") || cmd.equalsIgnoreCase("togroup")){
+        else if(cmd.equalsIgnoreCase("tojuncs") || cmd.equalsIgnoreCase("toevents")){
             if(args.length==1 || args[1].equals("-h")){
                 System.err.println("\nThis is the help of '"+cmd+"' command of HiTSeq.");
                 System.err.println("Usage: java -jar HiTSeq.jar "+cmd+" [options] <in.file> [in2.file ...]\n"
@@ -366,10 +365,7 @@ public class HiTSeq {
             
             if(cmd.equalsIgnoreCase("tojuncs"))
                 junctions.outputInJuncs(true);
-            else if(cmd.equalsIgnoreCase("togroup")){
-                junctions.groupJuncSet();
-                junctions.outputJuncGroups();
-            } else{
+            else{
                 junctions.groupJuncSet();
                 System.err.println("done junction grouping");
                 //junctions.outputJuncGroups();
