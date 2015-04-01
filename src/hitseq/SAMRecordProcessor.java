@@ -5,10 +5,10 @@
 package hitseq;
 
 import hitseq.annotation.Annotation;
+import htsjdk.samtools.AlignmentBlock;
+import htsjdk.samtools.SAMRecord;
 import java.util.ArrayList;
 import java.util.List;
-import net.sf.samtools.AlignmentBlock;
-import net.sf.samtools.SAMRecord;
 /**
  *
  * @author hezhisong

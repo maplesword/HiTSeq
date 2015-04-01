@@ -7,12 +7,13 @@ package hitseq;
 import hitseq.annotation.Annotation;
 import hitseq.annotation.Junction;
 import hitseq.annotation.JunctionSet;
+import htsjdk.samtools.*;
+import htsjdk.samtools.util.CloserUtil;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import net.sf.samtools.*;
 
 
 /**
@@ -176,7 +177,7 @@ public class ReadCounter {
     private void estimateCountsSimply(boolean considerNHAttrib, boolean readCollapse, int modeForMultiGenesOverlap, boolean markAmbiguous){
         totalNumReads=0;
         int numNoFeature=0, numAmbiguous=0;
-        try (SAMFileReader inputSam = new SAMFileReader(inputFile)) {
+        try (SamReader inputSam = SamReaderFactory.makeDefault().open(inputFile)) {
             File outAmbiguous;
             SAMFileWriter outputSam = null;
             if(markAmbiguous){
@@ -188,6 +189,8 @@ public class ReadCounter {
             String strandLast="";
             String cigarLast="";
             int alignmentStartLast=-1;
+            HashMap<String,HashSet<String>> overlapGenesForPair=new HashMap<>();
+            HashMap<String,SAMRecord> firstRecordOfPair=new HashMap<>();
             
             for(SAMRecord record : inputSam){
                 if(record.getReadUnmappedFlag()) // skip if this read is unmapped
@@ -205,8 +208,8 @@ public class ReadCounter {
                 String strand=record.getReadNegativeStrandFlag() ? "-" : "+";
                 String cigar=record.getCigarString();
                 
-                // remove PCR artifact if necessary
-                if(readCollapse){
+                // remove PCR artifact if necessary (only work for single-ended data)
+                if(readCollapse && !record.getReadPairedFlag()){
                     if(chromLast.equals(chrom) && strandLast.equals(strand) && cigarLast.equals(cigar) && alignmentStartLast==alignmentStart){
                         continue;
                     }
@@ -219,12 +222,14 @@ public class ReadCounter {
                 }
                 
                 // count total reads
-                if(considerNHAttrib && record.getIntegerAttribute("NH")!=null)
-                    totalNumReads+=1.0/record.getIntegerAttribute("NH");
-                else
-                    totalNumReads++;
-                if(java.lang.Math.ceil(totalNumReads)%1000000==0)
-                    System.err.println("reading reads "+Double.valueOf(java.lang.Math.ceil(totalNumReads)).longValue()+"...");
+                if((record.getReadPairedFlag() && record.getSecondOfPairFlag()) || ! record.getReadPairedFlag()){
+                    if(considerNHAttrib && record.getIntegerAttribute("NH")!=null)
+                        totalNumReads+=1.0/record.getIntegerAttribute("NH");
+                    else
+                        totalNumReads++;
+                    if(java.lang.Math.ceil(totalNumReads)%1000000==0)
+                        System.err.println("reading reads "+Double.valueOf(java.lang.Math.ceil(totalNumReads)).longValue()+"...");
+                }
                 
                 // skip if no gene exists in this chromosome in annotation
                 if(! annotation.chromIsExisted(chrom)){
@@ -236,11 +241,37 @@ public class ReadCounter {
                 SAMRecordProcessor recordProcessor=new SAMRecordProcessor(record, annotation);
                 ArrayList<String> overlappedGenes=recordProcessor.getOverlapGenes(strandSpecific);
                 
+                if(record.getReadPairedFlag() && record.getFirstOfPairFlag()){
+                    String id=record.getReadName();
+                    id.replaceAll("{1,2}$", "");
+                    if(!overlappedGenes.isEmpty()){
+                        HashSet<String> genes=new HashSet<>();
+                        genes.addAll(overlappedGenes);
+                        overlapGenesForPair.put(id, genes);
+                    }
+                    if(markAmbiguous)
+                        firstRecordOfPair.put(id, record);
+                }
+                if(record.getReadPairedFlag() && record.getSecondOfPairFlag()){
+                    String id=record.getReadName();
+                    id.replaceAll("{1,2}$", "");
+                    if(overlapGenesForPair.containsKey(id)){
+                        HashSet<String> genes=overlapGenesForPair.get(id);
+                        genes.addAll(overlappedGenes);
+                        overlappedGenes.clear();
+                        overlappedGenes.addAll(genes);
+                        
+                        overlapGenesForPair.remove(id);
+                    }
+                }
+                
                 double add=1;
                 if(considerNHAttrib && record.getIntegerAttribute("NH")!=null)
                     add=add/record.getIntegerAttribute("NH");
                 if(overlappedGenes.isEmpty()){
                     numNoFeature++;
+                    if(record.getReadPairedFlag() && record.getFirstOfPairFlag())
+                        numNoFeature--;
                 } else if(overlappedGenes.size()==1 || modeForMultiGenesOverlap==1){ // Mode 1: For the multi-genes hits, equally assign 1/n to each gene
                     add/=overlappedGenes.size();
                     for(String gene : overlappedGenes)
@@ -251,10 +282,20 @@ public class ReadCounter {
                     counts.put(overlappedGenes.get(selected), counts.get(overlappedGenes.get(selected))+add);
                 } else if(modeForMultiGenesOverlap==0){
                     numAmbiguous++;
+                    if(record.getReadPairedFlag() && record.getFirstOfPairFlag())
+                        numAmbiguous--;
                 }
                 
-                if(markAmbiguous && overlappedGenes.size()>1)
-                    outputSam.addAlignment(record);
+                if(markAmbiguous){
+                    String id=record.getReadName();
+                    id.replaceAll("{1,2}$", "");
+                    
+                    if(overlappedGenes.size()>1){
+                        outputSam.addAlignment(firstRecordOfPair.get(id));
+                        outputSam.addAlignment(record);
+                    }
+                    firstRecordOfPair.remove(id);
+                }
             }
             inputSam.close();
             if(markAmbiguous)
@@ -336,7 +377,10 @@ public class ReadCounter {
             HashMap<String, Double> influencedGenesLastRPKM=new HashMap<>();
             annotation.resetPointer();
             
-            try (SAMFileReader inputSam = new SAMFileReader(new File(inputFile.getAbsolutePath()+"-ambiguous.bam"))) {
+            // the file has to be sorted.
+            try (SamReader inputSam = SamReaderFactory.makeDefault().open(new File(inputFile.getAbsolutePath()+"-ambiguous.bam"))) {
+                inputSam.getFileHeader().setSortOrder(SAMFileHeader.SortOrder.coordinate); // sort the BAM file
+                
                 for(SAMRecord record : inputSam){
                     SAMRecordProcessor recordProcessor=new SAMRecordProcessor(record, annotation);
                     ArrayList<String> overlappedGenes=recordProcessor.getOverlapGenes(strandSpecific);
@@ -410,7 +454,7 @@ public class ReadCounter {
     void estimateJunctionCounts(boolean considerNHAttrib, boolean readCollapse){
         int numJuncReads=0;
         HashMap<String,HashSet<Junction>> juncListChrom=junctions.getJunctions();
-        try (SAMFileReader inputSam = new SAMFileReader(inputFile)) {
+        try (SamReader inputSam = SamReaderFactory.makeDefault().open(inputFile)) {
             String chromLast="";
             String strandLast="";
             String cigarLast="";
@@ -518,6 +562,8 @@ public class ReadCounter {
                     //System.err.println(record.getReadName()+"\t"+record.getCigarString());
                 }
             }
+            
+            CloserUtil.close(inputSam);
         }
         catch(Exception e){
             System.err.println("Error in ReadCounter when estimate junction count: "+e);

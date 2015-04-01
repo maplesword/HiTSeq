@@ -4,11 +4,11 @@
  */
 package hitseq.annotation;
 
+import htsjdk.samtools.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.*;
-import net.sf.samtools.*;
 
 /**
  *
