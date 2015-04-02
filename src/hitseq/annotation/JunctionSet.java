@@ -65,6 +65,9 @@ public class JunctionSet {
      * @param eventSet 
      */
     public JunctionSet(ASEventSet eventSet){
+        juncInChrom=new HashMap<>();
+        juncGroups=new HashMap<>();
+        
         ArrayList<HashMap<String, ArrayList<ASEvent>>> allEventsInGroups=eventSet.getEventsInTypeInGroups();
         for(int type=0; type<allEventsInGroups.size(); type++)
             for(String group : allEventsInGroups.get(type).keySet()){
@@ -273,6 +276,15 @@ public class JunctionSet {
             System.err.println("Error in JunctionSet.java when reading BAM: "+e);
             System.exit(1);
         }
+    }
+    
+    public void addJunctionSet(JunctionSet newJunctions){
+        for(String chrom : newJunctions.juncInChrom.keySet()){
+            if(!this.juncInChrom.containsKey(chrom))
+                this.juncInChrom.put(chrom, new HashSet<Junction>());
+            this.juncInChrom.get(chrom).addAll(newJunctions.juncInChrom.get(chrom));
+        }
+        groupJuncSet();
     }
     
     /**

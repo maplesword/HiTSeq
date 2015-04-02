@@ -223,10 +223,12 @@ public class MappingProcessor {
                             
                             // check the number of proper pairs
                             if(properPairs.size()==1){
-                                numUnique++;
-                                //System.out.println(id);
-                                for(SAMRecord outputRecord : properPairs.get(properPairs.keySet().iterator().next()))
-                                    outputSam.addAlignment(outputRecord);
+                                String pairID=properPairs.keySet().iterator().next();
+                                if(properPairs.get(pairID).size()==2){
+                                    numUnique++;
+                                    for (SAMRecord outputRecord : properPairs.get(properPairs.keySet().iterator().next()))
+                                        outputSam.addAlignment(outputRecord);
+                                }
                             }
                         }
                         

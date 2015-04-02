@@ -252,7 +252,7 @@ public class ReadCounter {
                         alignmentStartLast = alignmentStart;
                     }
                 } else if (readCollapse && record.getReadPairedFlag() && !notifyPairedCollapse) {
-                    System.err.println("WARNING: Redundant reads removal is not supported for paired-ended RNA-seq data.");
+                    System.err.println("WARNING: Redundant reads removal is not supported for paired-ended RNA-seq data yet.");
                     notifyPairedCollapse = true;
                 }
 
@@ -553,6 +553,7 @@ public class ReadCounter {
      */
     void estimateJunctionCounts(boolean considerNHAttrib, boolean readCollapse) {
         int numJuncReads = 0;
+        boolean notifyPairedCollapse=false;
         HashMap<String, HashSet<Junction>> juncListChrom = junctions.getJunctions();
         try (SamReader inputSam = SamReaderFactory.makeDefault().open(inputFile)) {
             String chromLast = "";
@@ -581,7 +582,7 @@ public class ReadCounter {
                 String strand = record.getReadNegativeStrandFlag() ? "-" : "+";
                 String cigarString = record.getCigarString();
                 int alignmentStart = hits.get(0).getReferenceStart();
-                if (readCollapse) {
+                if (readCollapse && ! record.getReadPairedFlag()) {
                     if (chromLast.equals(chrom) && strandLast.equals(strand) && cigarLast.equals(cigarString) && alignmentStartLast == alignmentStart) {
                         continue;
                     } else {
@@ -590,6 +591,9 @@ public class ReadCounter {
                         cigarLast = cigarString;
                         alignmentStartLast = alignmentStart;
                     }
+                } else if(readCollapse && record.getReadPairedFlag() && !notifyPairedCollapse){
+                    System.err.println("WARNING: Redundant reads removal is not supported for paired-ended RNA-seq data yet.");
+                    notifyPairedCollapse = true;
                 }
 
                 // count total reads

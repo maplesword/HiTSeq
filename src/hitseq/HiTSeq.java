@@ -31,7 +31,7 @@ public class HiTSeq {
                     + "           gtf2struc  Transform GTF annotation into struc format\n"
                     + "           tojuncs    Combine and transform junction list(s) into a junction list in 'juncs' format\n"
                     + "           toevents   Combine the junction list(s) and generate alternative splicing events\n"
-                    + "           countjunc  Given junction list in junc/bed/gtf format, output table of read count of each junction for the input alignments\n");
+                    + "           countjunc  Given junction list in junc/bed/gtf format, or event list in events format, output table of read count of each junction for the input alignments\n");
     }
     
     /**
@@ -114,7 +114,7 @@ public class HiTSeq {
                     + "   Or: HiTSeq.sh " + cmd + " [options] <in.file> [in2.file ...]");
             System.err.println("\n"
                     + "Options: -h        This help page\n"
-                    + "         -a [str]  The file type of junction annotation file (default: juncs format)\n"
+                    + "         -a [str]  The file type of junction annotation file (default: juncs format; options: juncs/bed[tophat output]/gtf/bam/events)\n"
                     + "         -s [int]  Strandedness of BAM/SAM input (default: 0 [no strand information]; 1/-1 [same/opposite strandness]; only work with '-a bam')\n");
             System.exit(0);
         }
@@ -133,6 +133,9 @@ public class HiTSeq {
             String pathBed = args[i];
             if (fileType.equalsIgnoreCase("bam")) {
                 junctions.addJunctionSet(new File(pathBed), strandSpecific);
+            } else if(fileType.equalsIgnoreCase("events")){
+                ASEventSet eventSet=new ASEventSet(new File(pathBed));
+                junctions.addJunctionSet(new JunctionSet(eventSet));
             } else {
                 junctions.addJunctionSet(new File(pathBed), fileType);
             }
@@ -165,9 +168,9 @@ public class HiTSeq {
                     + "         -s [int]  Strandedness (default: 0 - no strand information; 1 - same strandness; -1 - opposite strandness)\n"
                     + "         -n        For reads mapped to n-loci, assign 1/n read to each hit\n"
                     + "         -c        Do read collapse to remove PCR duplicates\n"
-                    + "         -m [int]  The mode to deal with multi-gene hits (default: mode 0 - abandon ambiguous reads)\n"
+                    + "         -m [int]  The mode to deal with multi-gene hits (default: mode 0 - abandon ambiguous reads; options: 0-3)\n"
                     + "         -t [int]  The maximum iteration time to assign ambiguous reads (default: 2). Only work with -m 3\n"
-                    + "         -a [str]  The file type of annotation file (default: struc format)\n");
+                    + "         -a [str]  The file type of annotation file (default: struc format; options: struc/gtf/bed)\n");
             System.exit(0);
         }
 
@@ -294,7 +297,7 @@ public class HiTSeq {
     }
     
     /**
-     * The function to run read counting for junctions
+     * The function to run read counting for junctions (command "countjunc")
      * @param args the command line arguments
      */
     private static void runJunctionCounting(String[] args){
@@ -306,7 +309,7 @@ public class HiTSeq {
                     + "   Or: HiTSeq.sh " + cmd + " [options] <junc.file> <in.bam> [in2.bam ...]");
             System.err.println("\n"
                     + "Options: -h        This help page\n"
-                    + "         -a [str]  The file type of junction annotation file (default: juncs format)\n"
+                    + "         -a [str]  The file type of junction annotation file (default: juncs format; options: juncs/bed[tophat output]/gtf/bam/events)\n"
                     + "         -n        For reads mapped to n-loci, only assign 1/n read to each hit\n"
                     + "         -c        Do read collapse to remove PCR duplicates\n"
                     + "         -s [int]  Strandedness of BAM/SAM input (default: 0 [no strand information]; 1/-1 [same/opposite strandness]; only work with '-a bam')\n"
@@ -632,8 +635,8 @@ public class HiTSeq {
                                 this.firstSAMIndex++;
                                 this.annotFormat=args[this.firstSAMIndex];
                                 if(cmd.equalsIgnoreCase("countjunc") || cmd.equalsIgnoreCase("tojuncs") || cmd.equalsIgnoreCase("toevents")){
-                                    if ((!this.annotFormat.equalsIgnoreCase("gtf")) && (!this.annotFormat.equalsIgnoreCase("bed")) && (!this.annotFormat.equalsIgnoreCase("juncs")) && (!this.annotFormat.equalsIgnoreCase("bam"))) {
-                                        System.err.println("\nParameter error. The mode should be one of \"juncs\", \"gtf\", \"bed\" and \"bam\".\n");
+                                    if ((!this.annotFormat.equalsIgnoreCase("gtf")) && (!this.annotFormat.equalsIgnoreCase("bed")) && (!this.annotFormat.equalsIgnoreCase("juncs")) && (!this.annotFormat.equalsIgnoreCase("bam")) && (!this.annotFormat.equalsIgnoreCase("events"))) {
+                                        System.err.println("\nParameter error. The mode should be one of \"juncs\", \"gtf\", \"bed\", \"bam\" and \"events\".\n");
                                         System.exit(0);
                                     } 
                                 } else if (cmd.equalsIgnoreCase("count") || cmd.equalsIgnoreCase("rpkm")) {
