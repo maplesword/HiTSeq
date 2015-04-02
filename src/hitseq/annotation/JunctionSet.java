@@ -204,7 +204,7 @@ public class JunctionSet {
      * @param strandSpecific Strand mode of the BAM file. 0 for no strand, 1 for the same strand, -1 for the opposite strand.
      */
     public final void addJunctionSet(File file, int strandSpecific){
-        try (SAMFileReader inputSam = new SAMFileReader(file)) {
+        try (SamReader inputSam = SamReaderFactory.makeDefault().open(file)) {
             int numJunctionReads=0, numMappedReads=0;
             for(SAMRecord record : inputSam){
                 if(record.getReadUnmappedFlag()) // skip if this read is unmapped
@@ -223,8 +223,10 @@ public class JunctionSet {
 
                 String chrom=record.getReferenceName();
                 String strand;
-                if(strandSpecific==0)
+                if(strandSpecific==0 && record.getCharacterAttribute("XS")==null)
                     strand="*";
+                else if(record.getAttribute("XS")!=null)
+                    strand=record.getCharacterAttribute("XS").toString();
                 else if(strandSpecific==1)
                     strand=record.getReadNegativeStrandFlag() ? "-" : "+";
                 else
