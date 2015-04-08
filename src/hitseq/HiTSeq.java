@@ -488,6 +488,14 @@ public class HiTSeq {
         else if(cmd.equalsIgnoreCase("test")){ // a command for test only
             runTest(args);
         }
+        else if(cmd.equalsIgnoreCase("gui")){
+            try{
+                java.lang.reflect.Method method=hitseq.gui.GraphicUserInterface.class.getMethod("main", String[].class);
+                method.invoke(null, (Object) args);
+            } catch (Exception e){
+                System.err.println(e);
+            }
+        }
     }
     
     

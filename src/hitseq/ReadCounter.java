@@ -42,7 +42,7 @@ public class ReadCounter {
      * strand.
      * @param modeForMultiGenesOverlap The mode to process ambiguous reads.
      */
-    ReadCounter(File file, Annotation annotation, int strandSpecific, int modeForMultiGenesOverlap) {
+    public ReadCounter(File file, Annotation annotation, int strandSpecific, int modeForMultiGenesOverlap) {
         if (!file.exists()) {
             System.err.println("Cannot find input file: " + file.getAbsolutePath());
             System.exit(1);
@@ -81,7 +81,7 @@ public class ReadCounter {
      * strand information, 1 for with the same strand, -1 for with the opposite
      * strand.
      */
-    ReadCounter(File file, JunctionSet junctions, int strandSpecific) {
+    public ReadCounter(File file, JunctionSet junctions, int strandSpecific) {
         if (!file.exists()) {
             System.err.println("Cannot find input file: " + file.getAbsolutePath());
             System.exit(1);
@@ -98,11 +98,11 @@ public class ReadCounter {
         }
     }
 
-    double getTotalNumReads() {
+    public double getTotalNumReads() {
         return (totalNumReads);
     }
 
-    HashMap<String, Double> getCounts() {
+    public HashMap<String, Double> getCounts() {
         return (counts);
     }
 
@@ -176,7 +176,7 @@ public class ReadCounter {
      * @param convergLimit The upper limit of iteration time if the counter is
      * set to use iteration to better assign ambiguous reads to genes.
      */
-    void estimateCounts(boolean considerNHAttrib, boolean readCollapse, int convergLimit) {
+    public void estimateCounts(boolean considerNHAttrib, boolean readCollapse, int convergLimit) {
         if (modeForMultiGenesOverlap < 3) {
             estimateCountsSimply(considerNHAttrib, readCollapse);
         } else if (modeForMultiGenesOverlap == 3) {
