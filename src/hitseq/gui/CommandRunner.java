@@ -5,6 +5,7 @@
  */
 package hitseq.gui;
 
+import hitseq.MappingProcessor;
 import hitseq.ReadCounter;
 import hitseq.annotation.Annotation;
 import java.io.File;
@@ -27,6 +28,7 @@ public class CommandRunner extends Thread{
     final private javax.swing.JProgressBar progressBar;
     final private javax.swing.JButton[] buttons;
     final private javax.swing.JButton buttonCancel;
+    final private javax.swing.JTabbedPane pane;
     
     private Annotation annotation;
     
@@ -35,6 +37,7 @@ public class CommandRunner extends Thread{
         parameters=null;
         progressBar=null;
         buttons=null;
+        pane=null;
         totalNumMappedReads=null;
         readCount=null;
         buttonCancel=null;
@@ -45,16 +48,18 @@ public class CommandRunner extends Thread{
         this.parameters=parameters;
         progressBar=null;
         buttons=null;
+        pane=null;
         totalNumMappedReads=null;
         readCount=null;
         buttonCancel=null;
         annotation=null;
     }
-    CommandRunner(String cmd, ParameterSet parameters, javax.swing.JProgressBar progressBar, javax.swing.JButton[] buttons, javax.swing.JButton cancel){
+    CommandRunner(String cmd, ParameterSet parameters, javax.swing.JProgressBar progressBar, javax.swing.JButton[] buttons, javax.swing.JButton cancel, javax.swing.JTabbedPane pane){
         this.cmd=cmd;
         this.parameters=parameters;
         this.progressBar=progressBar;
         this.buttons=buttons;
+        this.pane=pane;
         totalNumMappedReads=null;
         readCount=null;
         buttonCancel=cancel;
@@ -71,8 +76,14 @@ public class CommandRunner extends Thread{
     
     @Override
     public void run(){
-        if(cmd.equals("count"))
-            runCount();
+        switch (cmd) {
+            case "count":
+                runCount();
+                break;
+            case "uniq":
+                runUniq();
+                break;
+        }
         
         if(progressBar!=null)
             progressBar.setString("Finish");
@@ -81,6 +92,10 @@ public class CommandRunner extends Thread{
                 button.setEnabled(true);
         if(buttonCancel!=null)
             buttonCancel.setText("Close");
+        if(pane!=null){
+            pane.setEnabled(true);
+            pane.setFocusable(true);
+        }
     }
     
     void runCount(){
@@ -93,13 +108,17 @@ public class CommandRunner extends Thread{
         
         // read annotation and initial data vectors
         annotation = new Annotation(parameters.getAnnotFile(), parameters.getAnnotFormat());
-        if(!this.isInterrupted())
-            if (progressBar != null) {
+        if (!this.isInterrupted()) {
+            if (progressBar != null)
                 progressBar.setValue(progressBar.getValue() + stepLength / 2);
+ 
+            annotation.estimateAmbiguousGeneRegions();
             totalNumMappedReads = new HashMap<>();
             readCount = new HashMap<>();
-            for (String gene : annotation.getGeneSet()) 
+            for (String gene : annotation.getGeneSet()) {
                 readCount.put(gene, new HashMap<String, Double>());
+            }
+            
             if (progressBar != null) 
                 progressBar.setValue(progressBar.getValue() + stepLength / 2);
         }
@@ -123,6 +142,15 @@ public class CommandRunner extends Thread{
         }
     }
     
+    void runUniq(){
+        boolean considerNH = parameters.getConsiderNHTag();
+        File inputSam = parameters.getMappingFiles().get(0);
+        File outputSam = parameters.getMappingFiles().get(1);
+        MappingProcessor processor = new MappingProcessor(inputSam);
+        int numUniqueReads = processor.extractUniquelyMappedReads(outputSam, considerNH);
+        System.err.println("Total Number of Uniquely Mapped Reads of " + inputSam.getAbsolutePath() + ": " + numUniqueReads);
+    }
+    
     String generateOutputString(){
         // output header
         String output = "GENE_ID\tLENGTH";
@@ -130,7 +158,6 @@ public class CommandRunner extends Thread{
             output = output + "\t" + mappingFile.getAbsolutePath();
         }
         System.out.println(output);
-        //System.err.println("generated header");
         
         // output the total number of mapped reads
         String totalReads = String.valueOf(totalNumMappedReads.get(parameters.getMappingFiles().get(0).getAbsolutePath()).intValue());
@@ -141,7 +168,6 @@ public class CommandRunner extends Thread{
         }
         output+="TOTAL_READS\tNA\t" + totalReads + "\n";
         System.out.println("TOTAL_READS\tNA\t" + totalReads);
-        //System.err.println("generated total mapped reads");
         
         // output read count for genes
         java.util.TreeSet<String> sortedGeneNames = new java.util.TreeSet<>(new java.util.Comparator<String>() {
@@ -169,7 +195,6 @@ public class CommandRunner extends Thread{
             }
             //output += gene + "\t" + geneLength + readNum + "\n";
             System.out.println(gene + "\t" + geneLength + readNum);
-            //System.err.println("generated gene: "+gene);
         }
         
         return output;
@@ -183,7 +208,7 @@ class ParameterSet {
     
     private String annotFormat;
     private File annotFile;
-    private ArrayList<File> mappingFiles;
+    final private ArrayList<File> mappingFiles;
     
     ParameterSet(){
         strandSpecific=0;

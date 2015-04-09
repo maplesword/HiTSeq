@@ -20,7 +20,7 @@ public class MappingProcessor {
     private File inputFile;
     private ArrayList<Integer> info;
     
-    MappingProcessor(File file){
+    public MappingProcessor(File file){
         if(! file.exists()){
             System.err.println("Cannot find input file: "+file.getAbsolutePath());
             System.exit(1);
@@ -105,7 +105,7 @@ public class MappingProcessor {
         }
     }
     
-    int extractUniquelyMappedReads(File output, boolean attemptNH){
+    public int extractUniquelyMappedReads(File output, boolean attemptNH){
         // try the simple way to extract, but only work for single-ended data with NH tag
         if(attemptNH){
             System.err.println("Attempting to use the NH tag...");
@@ -138,7 +138,7 @@ public class MappingProcessor {
             // firstly, sort the reads by read IDs
             System.err.println("Start sorting by QueryName...");
             boolean tempGenerated=true;
-            File tempFile=new File("tmp_sorting.bam");
+            File tempFile=new File(System.getProperty("java.io.tmpdir")+"/tmp_sorting.bam");
             SamReader inputSam=SamReaderFactory.makeDefault().open(inputFile);
             if(inputSam.getFileHeader().getSortOrder().equals(SAMFileHeader.SortOrder.queryname)){
                 tempFile=inputFile;

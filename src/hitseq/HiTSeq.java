@@ -31,7 +31,8 @@ public class HiTSeq {
                     + "           gtf2struc  Transform GTF annotation into struc format\n"
                     + "           tojuncs    Combine and transform junction list(s) into a junction list in 'juncs' format\n"
                     + "           toevents   Combine the junction list(s) and generate alternative splicing events\n"
-                    + "           countjunc  Given junction list in junc/bed/gtf format, or event list in events format, output table of read count of each junction for the input alignments\n");
+                    + "           countjunc  Given junction list in junc/bed/gtf format, or event list in events format, output table of read count of each junction for the input alignments\n"
+                    + "           gui        Open HiTSeq GUI.\n");
     }
     
     /**
