@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.regex.*;
 
 /**
  * The class for SAM/BAM processing, including information collecting and uniquely mapped reads extraction
@@ -182,7 +183,10 @@ public class MappingProcessor {
                     }
                     String id = record.getReadName();
                     if (paired) {
-                        id = id.replaceAll("[12]$", "");
+                        Pattern pattern=Pattern.compile("\\W[12]$");
+                        Matcher matcher=pattern.matcher(id);
+                        if(matcher.find())
+                            id = id.replaceAll("[12]$", "");
                     }
                     
                     // the current read has the same ID as the previous one, then save it

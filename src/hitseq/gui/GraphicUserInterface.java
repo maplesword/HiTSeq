@@ -233,7 +233,7 @@ public class GraphicUserInterface extends javax.swing.JFrame {
 
         jPanelUniqReads.setEnabled(false);
 
-        jLabel6.setFont(new java.awt.Font("Calibri", 0, 14)); // NOI18N
+        jLabel6.setFont(new java.awt.Font("Calibri", 1, 14)); // NOI18N
         jLabel6.setText("Choose the BAM/SAM file");
 
         jTextFieldUniqPath.setFont(new java.awt.Font("Calibri", 0, 14)); // NOI18N

@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.regex.*;
 
 /**
  *
@@ -280,7 +281,10 @@ public class ReadCounter {
 
                 if (record.getReadPairedFlag() && record.getFirstOfPairFlag()) { // if this is the first segment of a pair, denote its overlapping genes, and the record as well if needed
                     String id = record.getReadName();
-                    id = id.replaceAll("[12]$", "");
+                    Pattern pattern=Pattern.compile("\\W[1,2]$");
+                    Matcher matcher=pattern.matcher(id);
+                    if(matcher.find())
+                        id = id.replaceAll("[12]$", "");
                     id = id + " " + record.getMateReferenceName() + ":" + Integer.toString(record.getMateAlignmentStart());
 
                     if (!overlappedGenes.isEmpty()) {
@@ -293,7 +297,10 @@ public class ReadCounter {
                     }
                 } else if (record.getReadPairedFlag() && record.getSecondOfPairFlag()) { // if this is the second segment of a pair, combine the overlapping genes of the two segments
                     String id = record.getReadName();
-                    id = id.replaceAll("[12]$", "");
+                    Pattern pattern=Pattern.compile("\\W[1,2]$");
+                    Matcher matcher=pattern.matcher(id);
+                    if(matcher.find())
+                        id = id.replaceAll("[12]$", "");
                     id = id + " " + record.getReferenceName() + ":" + Integer.toString(record.getAlignmentStart());
 
                     if (overlapGenesForPair.containsKey(id)) {
