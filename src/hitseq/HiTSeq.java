@@ -28,7 +28,7 @@ public class HiTSeq {
                     + "           count      Given annotation in struc/gtf/bed format, output table of read count of each gene for the input alignments\n"
                     + "           rpkm       Given annotation in struc/gtf/bed format, output table of RPKM of each gene for the input alignment\n"
                     + "           uniq       Extract uniquely mapped reads from the input alignment\n"
-                    + "           gtf2struc  Transform GTF annotation into struc format\n"
+                    + "           tostruc    Transform annotation into struc format\n"
                     + "           tojuncs    Combine and transform junction list(s) into a junction list in 'juncs' format\n"
                     + "           toevents   Combine the junction list(s) and generate alternative splicing events\n"
                     + "           countjunc  Given junction list in junc/bed/gtf format, or event list in events format, output table of read count of each junction for the input alignments\n"
@@ -100,9 +100,15 @@ public class HiTSeq {
      * The program to run "gtf2struc" command
      * @param args the command line arguments
      */
-    private static void transformGTF2Struc(String[] args){
-        String pathAnnotation = args[1];
-        Annotation annotation = new Annotation(new File(pathAnnotation), "gtf");
+    private static void transform2Struc(String[] args){
+        // read the parameters
+        String cmd=args[0];
+        ParameterSet parameters = new ParameterSet(cmd);
+        parameters.readCommandLineArgs(args);
+        
+        String annotationType=parameters.getAnnotFormat();
+        String pathAnnotation = args[parameters.getFirstSAMIdx()];
+        Annotation annotation = new Annotation(new File(pathAnnotation), annotationType);
         annotation.outputInStruc();
     }
     
@@ -476,8 +482,8 @@ public class HiTSeq {
         else if(cmd.equalsIgnoreCase("uniq")){
             runUniq(args);
         }
-        else if(cmd.equalsIgnoreCase("gtf2struc")){
-            transformGTF2Struc(args);
+        else if(cmd.equalsIgnoreCase("tostruc")){
+            transform2Struc(args);
         }
         else if(cmd.equalsIgnoreCase("tojuncs") || cmd.equalsIgnoreCase("toevents")){
             transform4Junction(args);
@@ -530,6 +536,8 @@ public class HiTSeq {
                 considerNH = false;
                 readCollapse = false;
                 outputForEvents = false;
+            } else if(cmd.equalsIgnoreCase("tostruc")){
+                annotFormat="gtf";
             }
         }
         
@@ -644,12 +652,12 @@ public class HiTSeq {
                                 this.firstSAMIndex++;
                                 this.annotFormat=args[this.firstSAMIndex];
                                 if(cmd.equalsIgnoreCase("countjunc") || cmd.equalsIgnoreCase("tojuncs") || cmd.equalsIgnoreCase("toevents")){
-                                    if ((!this.annotFormat.equalsIgnoreCase("gtf")) && (!this.annotFormat.equalsIgnoreCase("bed")) && (!this.annotFormat.equalsIgnoreCase("juncs")) && (!this.annotFormat.equalsIgnoreCase("bam")) && (!this.annotFormat.equalsIgnoreCase("events"))) {
+                                    if ((!this.annotFormat.equalsIgnoreCase("gtf")) && (!this.annotFormat.equalsIgnoreCase("gff3")) && (!this.annotFormat.equalsIgnoreCase("bed")) && (!this.annotFormat.equalsIgnoreCase("juncs")) && (!this.annotFormat.equalsIgnoreCase("bam")) && (!this.annotFormat.equalsIgnoreCase("events"))) {
                                         System.err.println("\nParameter error. The mode should be one of \"juncs\", \"gtf\", \"bed\", \"bam\" and \"events\".\n");
                                         System.exit(0);
                                     } 
-                                } else if (cmd.equalsIgnoreCase("count") || cmd.equalsIgnoreCase("rpkm")) {
-                                    if ((!this.annotFormat.equalsIgnoreCase("gtf")) && (!this.annotFormat.equalsIgnoreCase("bed")) && (!this.annotFormat.equalsIgnoreCase("struc"))) {
+                                } else if (cmd.equalsIgnoreCase("count") || cmd.equalsIgnoreCase("rpkm") || cmd.equalsIgnoreCase("tostruc")) {
+                                    if ((!this.annotFormat.equalsIgnoreCase("gtf")) && (!this.annotFormat.equalsIgnoreCase("gff3")) && (!this.annotFormat.equalsIgnoreCase("bed")) && (!this.annotFormat.equalsIgnoreCase("struc"))) {
                                         System.err.println("\nParameter error. The mode should be one of \"struc\", \"gtf\" and \"bed\".\n");
                                         System.exit(0);
                                     }

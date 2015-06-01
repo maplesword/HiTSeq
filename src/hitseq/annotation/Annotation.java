@@ -156,9 +156,9 @@ public class Annotation {
                             Integer exonStart=Integer.valueOf(elements[3]);
                             Integer exonEnd=Integer.valueOf(elements[4]);
                             
-                            Pattern geneIdPattern=Pattern.compile("gene_id \"[\\w\\.]+\";");
+                            Pattern geneIdPattern=Pattern.compile("gene_id \"[\\w\\.-]+\";");
                             Matcher geneIdMatcher=geneIdPattern.matcher(elements[8]);
-                            Pattern transcriptIdPattern=Pattern.compile("transcript_id \"[\\w\\.]+\";");
+                            Pattern transcriptIdPattern=Pattern.compile("transcript_id \"[\\w\\.-]+\";");
                             Matcher transcriptIdMatcher=transcriptIdPattern.matcher(elements[8]);
                             
                             if(geneIdMatcher.find() && transcriptIdMatcher.find()){
@@ -188,6 +188,63 @@ public class Annotation {
                                 Exon newExon=new Exon(elements[0], elements[6], exonStart, exonEnd);
                                 transcript.addExon(newExon);
                             }
+                        }
+                        break;
+                    case "gff3":
+                        if (!genesInChrom.containsKey(elements[0])) {
+                            genesInChrom.put(elements[0], new ArrayList<String>());
+                            pointerOfChrom.put(elements[0], 0);
+                        }
+                        
+                        String[] ids=elements[8].split(";");
+                        HashMap<String,String> attributes=new HashMap<>();
+                        for(String id : ids){
+                            String[] attribute=id.split("=");
+                            attributes.put(attribute[0], attribute[1]);
+                        }
+                        
+                        if(elements[2].equals("gene")){
+                            String geneId=attributes.get("ID");
+                            gene=new Gene(geneId, elements[0], elements[6]);
+                            genesInChrom.get(elements[0]).add(geneId);
+                            allGenes.put(geneId, gene);
+                            pointerOfGene.put(gene, 0);
+                        } else if(elements[2].equals("mRNA")){
+                            String transcriptId=attributes.get("ID");
+                            String geneId=attributes.get("Parent");
+                            
+                            if(! allGenes.containsKey(geneId)){ // the gene of this transcript is not yet in the list, drop it.
+                                System.err.println("Warning: the parent gene is not in the list for this transcript: "+transcriptId);
+                                break;
+                            }
+                            gene=allGenes.get(geneId);
+                            Transcript transcript=new Transcript(transcriptId, elements[0], elements[6]);
+                            gene.addTranscript(transcript);
+                        } else if(elements[2].equals("exon")){
+                            String exonId=attributes.get("ID");
+                            String transcriptId=attributes.get("Parent");
+                            if(! genesInChrom.containsKey(elements[0])){ // the chromosome of this exon is not available
+                                System.err.println("Warning: the chromosome of this exon is not availble: "+exonId);
+                                break;
+                            }
+                            
+                            gene=null;
+                            for(String geneId : genesInChrom.get(elements[0])){
+                                Gene thisGene=allGenes.get(geneId);
+                                if(thisGene.containTranscript(transcriptId)){
+                                    gene=thisGene;
+                                    break;
+                                }
+                            }
+                            
+                            if(gene==null){ // the gene of this exon is not yet in the list, drop it.
+                                System.err.println("Warning: the parent gene is not in the list for this exon: "+exonId);
+                                break;
+                            }
+                            Integer exonStart=Integer.valueOf(elements[3]);
+                            Integer exonEnd=Integer.valueOf(elements[4]);
+                            Exon newExon=new Exon(elements[0], elements[6], exonStart, exonEnd);
+                            gene.getTranscript(transcriptId).addExon(newExon);
                         }
                         break;
                     case "bed":
@@ -231,8 +288,8 @@ public class Annotation {
             System.err.println("finish reading annotation file (in "+fileType+" format)");
             
             
-            if(fileType.equals("gtf")){
-                // If the annotation is in GTF format, or the operation is to add additional annotation, the overlapping exons of the same gene should be merged
+            if(fileType.equals("gtf") || fileType.equals("gff3")){
+                // If the annotation is in GTF/GFF3 format, or the operation is to add additional annotation, the overlapping exons of the same gene should be merged
                 System.err.println("start sorting gene structure");
                 System.err.println("in total "+allGenes.size()+" genes");
                 for(Gene gene : allGenes.values()){
