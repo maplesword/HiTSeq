@@ -106,7 +106,7 @@ public class MappingProcessor {
         }
     }
     
-    public int extractUniquelyMappedReads(File output, boolean attemptNH){
+    public int extractUniquelyMappedReads(File output, boolean attemptNH, boolean onlyChr){
         // try the simple way to extract, but only work for single-ended data with NH tag
         if(attemptNH){
             System.err.println("Attempting to use the NH tag...");
@@ -120,7 +120,7 @@ public class MappingProcessor {
                         CloserUtil.close(inputSam);
                         outputSam.close();
                         
-                        numUnique=this.extractUniquelyMappedReads(output, false);
+                        numUnique=this.extractUniquelyMappedReads(output, false, onlyChr);
                         return(numUnique);
                     } else if(record.getIntegerAttribute("NH").equals(1)){
                         outputSam.addAlignment(record);
@@ -208,7 +208,9 @@ public class MappingProcessor {
                         } else if(paired){
                             HashMap<String, ArrayList<SAMRecord>> properPairs=new HashMap<>();
                             for(SAMRecord thisRecord : recordsTheRead){
-                                if(thisRecord.getProperPairFlag()){ // only consider the proper pairs
+                                if(thisRecord.getProperPairFlag() || (onlyChr && thisRecord.getReferenceName().equals(thisRecord.getMateReferenceName()))){ 
+                                // onlyChr is false: only consider the proper pairs
+                                // onlyChr is true: also consider other pairs with both mates at the same chromosome
                                     String pairID=null;
                                     if(thisRecord.getFirstOfPairFlag()){
                                         pairID=thisRecord.getReferenceName()+":"+Integer.toString(thisRecord.getAlignmentStart())+" "

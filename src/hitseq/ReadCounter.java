@@ -32,6 +32,7 @@ public class ReadCounter {
     private HashMap<String, Double> rpkm;
     private JunctionSet junctions;
     private HashMap<Junction, Double> junctionCounts;
+    private boolean sameChrIsEnough;
 
     /**
      * Generate a new ReadCounter object with given annotation
@@ -43,7 +44,7 @@ public class ReadCounter {
      * strand.
      * @param modeForMultiGenesOverlap The mode to process ambiguous reads.
      */
-    public ReadCounter(File file, Annotation annotation, int strandSpecific, int modeForMultiGenesOverlap) {
+    public ReadCounter(File file, Annotation annotation, int strandSpecific, int modeForMultiGenesOverlap, boolean sameChrIsEnough) {
         if (!file.exists()) {
             System.err.println("Cannot find input file: " + file.getAbsolutePath());
             System.exit(1);
@@ -52,6 +53,7 @@ public class ReadCounter {
         this.annotation = annotation;
         this.strandSpecific = strandSpecific;
         this.modeForMultiGenesOverlap = modeForMultiGenesOverlap;
+        this.sameChrIsEnough = sameChrIsEnough;
 
         totalNumReads = 0;
         this.calculatedRPKM = false;
@@ -228,7 +230,7 @@ public class ReadCounter {
                 SAMRecord record=iterator.next();
                 if (record.getReadUnmappedFlag()) // skip if this read is unmapped
                     continue;
-                if (record.getReadPairedFlag() && (!record.getProperPairFlag())) // skip if the read if paired but not in the proper paired mapping
+                if (record.getReadPairedFlag() && (!record.getProperPairFlag() && (!sameChrIsEnough || !record.getReferenceName().equals(record.getMateReferenceName())))) // skip if the read if paired but not in the proper paired mapping
                     continue;
 
                 List<AlignmentBlock> hitsList = record.getAlignmentBlocks();
@@ -271,6 +273,8 @@ public class ReadCounter {
 
                 // skip if no gene exists in this chromosome in annotation
                 if (!annotation.chromIsExisted(chrom)) {
+                    if(record.getReadPairedFlag() && record.getFirstOfPairFlag())
+                        continue;
                     numNoFeature++;
                     continue;
                 }
@@ -295,6 +299,8 @@ public class ReadCounter {
                     if (markAmbiguous) {
                         firstRecordOfPair.put(id, record);
                     }
+                    continue;
+                    
                 } else if (record.getReadPairedFlag() && record.getSecondOfPairFlag()) { // if this is the second segment of a pair, combine the overlapping genes of the two segments
                     String id = record.getReadName();
                     Pattern pattern=Pattern.compile("\\W[1,2]$");
@@ -312,6 +318,8 @@ public class ReadCounter {
                         overlapGenesForPair.remove(id);
                     }
                 }
+                
+                //System.err.println(record.getReadName()+"\t"+overlappedGenes);
 
                 // add count to the genes
                 double add = 1;
@@ -320,9 +328,6 @@ public class ReadCounter {
                 }
                 if (overlappedGenes.isEmpty()) {
                     numNoFeature++;
-                    if (record.getReadPairedFlag() && record.getFirstOfPairFlag()) {
-                        numNoFeature--;
-                    }
                 } else if (overlappedGenes.size() == 1 || modeForMultiGenesOverlap == 1) { // Mode 1: For the multi-genes hits, equally assign 1/n to each gene
                     add /= overlappedGenes.size();
                     for (String gene : overlappedGenes) {
@@ -334,9 +339,6 @@ public class ReadCounter {
                     counts.put(overlappedGenes.get(selected), counts.get(overlappedGenes.get(selected)) + add);
                 } else if (modeForMultiGenesOverlap == 0) { // Mode 0: See the multi-genes hits as ambiguous hits
                     numAmbiguous++;
-                    if (record.getReadPairedFlag() && record.getFirstOfPairFlag()) {
-                        numAmbiguous--;
-                    }
                 }
 
                 if (markAmbiguous) { // Mode 3: For the multi-genes hits, save them for the iterative counting

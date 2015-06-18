@@ -81,18 +81,23 @@ public class HiTSeq {
      * @param args the command line arguments
      */
     private static void runUniq(String[] args){
-        File inputSam = new File(args[1]);
+        String cmd=args[0];
+        ParameterSet parameters = new ParameterSet(cmd);
+        parameters.readCommandLineArgs(args);
+        
+        boolean sameChrIsEnough=parameters.getSameChrIsEnough();
+        File inputSam = new File(args[parameters.getFirstSAMIdx()]);
         MappingProcessor processor = new MappingProcessor(inputSam);
         File outputSam;
         if (args.length > 2) {
-            outputSam = new File(args[2]);
+            outputSam = new File(args[parameters.getFirstSAMIdx()+1]);
         } else {
             String parentDir = inputSam.getParent();
             String output = parentDir + "/unique." + inputSam.getName();
             outputSam = new File(output);
         }
 
-        int numUniqueReads = processor.extractUniquelyMappedReads(outputSam, true);
+        int numUniqueReads = processor.extractUniquelyMappedReads(outputSam, true, sameChrIsEnough);
         System.out.println("Total Number of Uniquely Mapped Reads of " + args[1] + ": " + numUniqueReads);
     }
     
@@ -177,7 +182,8 @@ public class HiTSeq {
                     + "         -c        Do read collapse to remove PCR duplicates\n"
                     + "         -m [int]  The mode to deal with multi-gene hits (default: mode 0 - abandon ambiguous reads; options: 0-3)\n"
                     + "         -t [int]  The maximum iteration time to assign ambiguous reads (default: 2). Only work with -m 3\n"
-                    + "         -a [str]  The file type of annotation file (default: struc format; options: struc/gtf/bed)\n");
+                    + "         -a [str]  The file type of annotation file (default: struc format; options: struc/gtf/bed)\n"
+                    + "         -p        When paired-ended data is provided, the proper paired flag will not be considered\n");
             System.exit(0);
         }
 
@@ -191,6 +197,7 @@ public class HiTSeq {
         int modeForMultiGenesOverlap = parameters.getModeForMultiGenesOverlap();
         int iterationLimit = parameters.getIterationLimit();
         String annotFormat = parameters.getAnnotFormat();
+        boolean sameChrIsEnough = parameters.getSameChrIsEnough();
 
         int firstSAMIndex = parameters.getFirstSAMIdx();
 
@@ -215,7 +222,7 @@ public class HiTSeq {
 
             // Read counting
             annotation.resetPointer();
-            ReadCounter counter = new ReadCounter(mappingFile, annotation, strandSpecific, modeForMultiGenesOverlap);
+            ReadCounter counter = new ReadCounter(mappingFile, annotation, strandSpecific, modeForMultiGenesOverlap, sameChrIsEnough);
             counter.estimateCounts(considerNH, readCollapse, iterationLimit);
             HashMap<String, Double> count = counter.getCounts();
             for (String gene : count.keySet()) {
@@ -520,6 +527,7 @@ public class HiTSeq {
         private int iterationLimit;
         private String annotFormat;
         private boolean outputForEvents=false;
+        private boolean sameChrIsEnough=false;
         
         ParameterSet(String cmd){
             firstSAMIndex=1;
@@ -571,6 +579,10 @@ public class HiTSeq {
         
         boolean getOutputForEventsTag(){
             return(outputForEvents);
+        }
+        
+        boolean getSameChrIsEnough(){
+            return(sameChrIsEnough);
         }
         
         void readCommandLineArgs(String[] args){
@@ -665,6 +677,9 @@ public class HiTSeq {
                                 break;
                             case "e":
                                 outputForEvents=true;
+                                break;
+                            case "p":
+                                sameChrIsEnough=true;
                                 break;
                             default:
                                 System.err.println("\nParameter error. No parameter "+option+"\n");

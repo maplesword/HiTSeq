@@ -128,7 +128,7 @@ public class CommandRunner extends Thread{
             if(this.isInterrupted())
                 break;
             annotation.resetPointer();
-            ReadCounter counter = new ReadCounter(mappingFile, annotation, strandSpecific, 0);
+            ReadCounter counter = new ReadCounter(mappingFile, annotation, strandSpecific, 0, false);
             counter.estimateCounts(considerNH, readCollapse, stepLength);
             HashMap<String, Double> count = counter.getCounts();
             
@@ -147,7 +147,7 @@ public class CommandRunner extends Thread{
         File inputSam = parameters.getMappingFiles().get(0);
         File outputSam = parameters.getMappingFiles().get(1);
         MappingProcessor processor = new MappingProcessor(inputSam);
-        int numUniqueReads = processor.extractUniquelyMappedReads(outputSam, considerNH);
+        int numUniqueReads = processor.extractUniquelyMappedReads(outputSam, considerNH, false);
         System.err.println("Total Number of Uniquely Mapped Reads of " + inputSam.getAbsolutePath() + ": " + numUniqueReads);
     }
     
