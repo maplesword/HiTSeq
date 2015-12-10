@@ -12,6 +12,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.regex.*;
+import hitseq.annotation.*;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.file.Files;
 
 /**
  * The class for SAM/BAM processing, including information collecting and uniquely mapped reads extraction
@@ -356,5 +360,141 @@ public class MappingProcessor {
         CloserUtil.close(inputSam);
         CloserUtil.close(outputSam);
         return(numUnique);
+    }
+    
+    public int reassignProperPairFlag(File output, int stranded, Annotation annotation){
+        File tempFileProper=new File(System.getProperty("java.io.tmpdir")+"/tmp_proper.bam");
+        File tempFileImproper=new File(System.getProperty("java.io.tmpdir")+"/tmp_improper.bam");
+        File tempFileOther=new File(System.getProperty("java.io.tmpdir")+"/tmp_others.bam");
+        File tempFileImproperCorrected=new File(System.getProperty("java.io.tmpdir")+"/tmp_improper_corrected.bam");
+        boolean isPaired=true;
+        int numCorrected = 0;
+        
+        SamReader inputSam=SamReaderFactory.makeDefault().open(inputFile);
+        try{
+            SAMFileHeader headerProper=inputSam.getFileHeader();
+            headerProper.setSortOrder(SAMFileHeader.SortOrder.queryname);
+            SAMFileWriter properSam = new SAMFileWriterFactory().makeSAMOrBAMWriter(headerProper, false, tempFileProper);
+            SAMFileWriter otherSam = new SAMFileWriterFactory().makeSAMOrBAMWriter(headerProper, false, tempFileOther);
+            SAMFileHeader headerImproper=inputSam.getFileHeader();
+            headerImproper.setSortOrder(SAMFileHeader.SortOrder.coordinate);
+            SAMFileWriter improperSam = new SAMFileWriterFactory().makeBAMWriter(headerImproper, false, tempFileImproper);
+            SAMRecordIterator iterator=inputSam.iterator();
+            int numImproper = 0;
+            
+            while(iterator.hasNext()){
+                SAMRecord record = iterator.next();
+                if(! record.getReadPairedFlag()){
+                    isPaired = false;
+                    break;
+                }
+                
+                if(record.getProperPairFlag())
+                    properSam.addAlignment(record);
+                else if((!(record.getReadUnmappedFlag() || record.getMateUnmappedFlag())) && record.getReferenceName().equals(record.getMateReferenceName())){
+                    improperSam.addAlignment(record);
+                    numImproper++;
+                } else{
+                    otherSam.addAlignment(record);
+                }
+            }
+            CloserUtil.close(inputSam);
+            CloserUtil.close(properSam);
+            CloserUtil.close(improperSam);
+            CloserUtil.close(otherSam);
+            
+            if(isPaired && numImproper>0){
+                SAMFileWriter outputCorrectedSam = new SAMFileWriterFactory().makeSAMOrBAMWriter(headerProper, false, tempFileImproperCorrected);
+                inputSam = SamReaderFactory.makeDefault().open(tempFileImproper);
+                iterator = inputSam.iterator();
+                int recordNum = 0;
+                
+                // 1st scan the improper reads, determine the additional proper pairs
+                HashMap<String, ArrayList<ArrayList<String>>> readGenes=new HashMap<>();
+                HashMap<String, ArrayList<Integer>> readIdx=new HashMap<>();
+                HashSet<Integer> properReadIdx = new HashSet<>();
+                while(iterator.hasNext()){
+                    SAMRecord record = iterator.next();
+                    SAMRecordProcessor proccessor = new SAMRecordProcessor(record, annotation);
+                    String recordID = proccessor.recordToString()+"|"+Boolean.toString(record.getFirstOfPairFlag());
+                    String mateID = proccessor.recordMateToString()+"|"+Boolean.toString(! record.getFirstOfPairFlag());
+                    
+                    if(readIdx.containsKey(mateID)){
+                        ArrayList<String> genesThis = proccessor.getOverlapGenes(stranded);
+                        ArrayList<String> genesMate = readGenes.get(mateID).get(0);
+                        HashSet<String> allGenes=new HashSet<>();
+                        for(String gene : genesThis)
+                            allGenes.add(gene);
+                        for(String gene : genesMate)
+                            allGenes.add(gene);
+                        if(allGenes.size() < genesThis.size()+genesMate.size()  // have overlapping genes
+                                && (!(record.getReadNegativeStrandFlag() && record.getMateNegativeStrandFlag()))){ // one forward one reverse
+                            properReadIdx.add(recordNum);
+                            properReadIdx.add(readIdx.get(mateID).get(0));
+                            numCorrected++;
+                        }
+                        
+                        readGenes.get(mateID).remove(0);
+                        if(readGenes.get(mateID).isEmpty())
+                            readGenes.remove(mateID);
+                        readIdx.get(mateID).remove(0);
+                        if(readIdx.get(mateID).isEmpty())
+                            readIdx.remove(mateID);
+                        
+                        
+                    } else{
+                        if(! readIdx.containsKey(recordID))
+                            readIdx.put(recordID, new ArrayList<Integer>());
+                        readIdx.get(recordID).add(recordNum);
+                        
+                        ArrayList<String> genes = proccessor.getOverlapGenes(stranded);
+                        if(! readGenes.containsKey(recordID))
+                            readGenes.put(recordID, new ArrayList<ArrayList<String>>());
+                        readGenes.get(recordID).add(genes);
+                    }
+                    
+                    recordNum++;
+                }
+                
+                // 2nd scan of the improper reads, re-assign the proper pair flag to the additional ones
+                // write the corrected reads to the file; if no change is needed, simply copy the file
+                if(properReadIdx.size()>0){
+                    iterator = inputSam.iterator();
+                    recordNum = 0;
+                    while(iterator.hasNext()){
+                        SAMRecord record = iterator.next();
+                        if(properReadIdx.contains(recordNum))
+                            record.setProperPairFlag(true);
+                        outputCorrectedSam.addAlignment(record);
+                    }
+                } else{
+                    Files.copy(tempFileImproper.toPath(), tempFileImproperCorrected.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+                Files.delete(tempFileImproper.toPath());
+                CloserUtil.close(inputSam);
+                CloserUtil.close(outputCorrectedSam);
+            }
+            
+            // output the corrected SAM files and sort by queryname 
+            SamReader inputProper = SamReaderFactory.makeDefault().open(tempFileProper);
+            SamReader inputImproperCorrected = SamReaderFactory.makeDefault().open(tempFileImproperCorrected);
+            SamReader inputOther = SamReaderFactory.makeDefault().open(tempFileOther);
+            SAMFileWriter outputSam = new SAMFileWriterFactory().makeSAMOrBAMWriter(headerProper, false, output);
+            for(SAMRecord record : inputProper)
+                outputSam.addAlignment(record);
+            for(SAMRecord record : inputImproperCorrected)
+                outputSam.addAlignment(record);
+            for(SAMRecord record : inputOther)
+                outputSam.addAlignment(record);
+            CloserUtil.close(inputProper);
+            CloserUtil.close(inputImproperCorrected);
+            CloserUtil.close(inputOther);
+            CloserUtil.close(outputSam);
+        }
+        catch(Exception e){
+            System.err.println(e);
+        }
+        
+        return(numCorrected);
     }
 }

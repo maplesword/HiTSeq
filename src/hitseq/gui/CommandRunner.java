@@ -101,6 +101,7 @@ public class CommandRunner extends Thread{
     void runCount(){
         int strandSpecific = parameters.getStrandedness();
         boolean considerNH = parameters.getConsiderNHTag();
+        boolean onlyUnique = parameters.getOnlyUnique();
         boolean readCollapse = parameters.getReadCollapseTag();
         
         int numMappingFiles=parameters.getMappingFiles().size();
@@ -129,7 +130,7 @@ public class CommandRunner extends Thread{
                 break;
             annotation.resetPointer();
             ReadCounter counter = new ReadCounter(mappingFile, annotation, strandSpecific, 0, false);
-            counter.estimateCounts(considerNH, readCollapse, stepLength);
+            counter.estimateCounts(considerNH, onlyUnique, readCollapse, stepLength);
             HashMap<String, Double> count = counter.getCounts();
             
             for (String gene : count.keySet()) {
@@ -204,6 +205,7 @@ public class CommandRunner extends Thread{
 class ParameterSet {
     private int strandSpecific;
     private boolean considerNH;
+    private boolean onlyUnique;
     private boolean readCollapse;
     
     private String annotFormat;
@@ -213,6 +215,7 @@ class ParameterSet {
     ParameterSet(){
         strandSpecific=0;
         considerNH=false;
+        onlyUnique=false;
         readCollapse=false;
         
         annotFormat=null;
@@ -238,6 +241,10 @@ class ParameterSet {
     
     void setConsiderNHTag(boolean consider){
         considerNH=consider;
+    }
+    
+    void setOnlyUnique(boolean consider){
+        onlyUnique=consider;
     }
     
     void setReadCollapse(boolean consider){
@@ -278,6 +285,10 @@ class ParameterSet {
 
     boolean getConsiderNHTag() {
         return (considerNH);
+    }
+    
+    boolean getOnlyUnique(){
+        return (onlyUnique);
     }
 
     boolean getReadCollapseTag() {

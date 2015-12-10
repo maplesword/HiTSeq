@@ -93,6 +93,7 @@ public class GraphicUserInterface extends javax.swing.JFrame {
         jFileChooser = new javax.swing.JFileChooser();
         jFileSaver = new javax.swing.JFileChooser();
         buttonGroupUniqNHTag = new javax.swing.ButtonGroup();
+        buttonGroupOnlyUniq = new javax.swing.ButtonGroup();
         jTabbedPane1 = new javax.swing.JTabbedPane();
         jPanelUniqReads = new javax.swing.JPanel();
         jLabel6 = new javax.swing.JLabel();
@@ -129,6 +130,9 @@ public class GraphicUserInterface extends javax.swing.JFrame {
         jLabel4 = new javax.swing.JLabel();
         jRadioButton9 = new javax.swing.JRadioButton();
         jRadioButton10 = new javax.swing.JRadioButton();
+        jLabel10 = new javax.swing.JLabel();
+        jRadioButton13 = new javax.swing.JRadioButton();
+        jRadioButton14 = new javax.swing.JRadioButton();
         jButtonRunCount = new javax.swing.JButton();
         jPanelJuncCount = new javax.swing.JPanel();
         jLabel9 = new javax.swing.JLabel();
@@ -334,7 +338,7 @@ public class GraphicUserInterface extends javax.swing.JFrame {
                 .addComponent(jLabel8)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 373, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(64, Short.MAX_VALUE))
+                .addContainerGap(60, Short.MAX_VALUE))
         );
 
         jTabbedPane1.addTab("Extract Unique Reads", jPanelUniqReads);
@@ -510,6 +514,28 @@ public class GraphicUserInterface extends javax.swing.JFrame {
         jRadioButton10.setSelected(true);
         jRadioButton10.setText("No");
 
+        jLabel10.setFont(new java.awt.Font("Calibri", 0, 12)); // NOI18N
+        jLabel10.setText("Only NH=1?");
+
+        buttonGroupOnlyUniq.add(jRadioButton13);
+        jRadioButton13.setFont(new java.awt.Font("Calibri", 0, 12)); // NOI18N
+        jRadioButton13.setText("Yes");
+        jRadioButton13.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jRadioButton13ActionPerformed(evt);
+            }
+        });
+
+        buttonGroupOnlyUniq.add(jRadioButton14);
+        jRadioButton14.setFont(new java.awt.Font("Calibri", 0, 12)); // NOI18N
+        jRadioButton14.setSelected(true);
+        jRadioButton14.setText("No");
+        jRadioButton14.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jRadioButton14ActionPerformed(evt);
+            }
+        });
+
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
         jPanel2Layout.setHorizontalGroup(
@@ -519,9 +545,14 @@ public class GraphicUserInterface extends javax.swing.JFrame {
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addComponent(jLabel2)
                     .addComponent(jLabel3)
-                    .addComponent(jLabel4))
+                    .addComponent(jLabel4)
+                    .addComponent(jLabel10))
                 .addGap(18, 18, 18)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel2Layout.createSequentialGroup()
+                        .addComponent(jRadioButton13)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                        .addComponent(jRadioButton14))
                     .addGroup(jPanel2Layout.createSequentialGroup()
                         .addComponent(jRadioButton4)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
@@ -537,7 +568,7 @@ public class GraphicUserInterface extends javax.swing.JFrame {
                                 .addComponent(jRadioButton7)
                                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                                 .addComponent(jRadioButton8)))))
-                .addContainerGap(262, Short.MAX_VALUE))
+                .addContainerGap(270, Short.MAX_VALUE))
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -558,6 +589,11 @@ public class GraphicUserInterface extends javax.swing.JFrame {
                     .addComponent(jLabel4)
                     .addComponent(jRadioButton9)
                     .addComponent(jRadioButton10))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel10)
+                    .addComponent(jRadioButton13)
+                    .addComponent(jRadioButton14))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
@@ -594,9 +630,9 @@ public class GraphicUserInterface extends javax.swing.JFrame {
                 .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(18, 18, 18)
                 .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(18, 18, 18)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addComponent(jButtonRunCount)
-                .addContainerGap(22, Short.MAX_VALUE))
+                .addContainerGap())
         );
 
         jTabbedPane1.addTab("Read Counting", jPanelReadCount);
@@ -620,7 +656,7 @@ public class GraphicUserInterface extends javax.swing.JFrame {
             .addGroup(jPanelJuncCountLayout.createSequentialGroup()
                 .addContainerGap()
                 .addComponent(jLabel9)
-                .addContainerGap(589, Short.MAX_VALUE))
+                .addContainerGap(582, Short.MAX_VALUE))
         );
 
         jTabbedPane1.addTab("Junction Counting", jPanelJuncCount);
@@ -640,7 +676,7 @@ public class GraphicUserInterface extends javax.swing.JFrame {
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
                 .addContainerGap()
-                .addComponent(jTabbedPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 660, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addComponent(jTabbedPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 651, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
@@ -772,6 +808,7 @@ public class GraphicUserInterface extends javax.swing.JFrame {
         for(int i=0; i<lm.getSize(); i++)
             parameters.addMappingFile(new File(lm.getElementAt(i).toString()));
         parameters.setConsiderNHTag(jRadioButton9.isSelected());
+        parameters.setOnlyUnique(jRadioButton13.isSelected());
         parameters.setReadCollapse(jRadioButton4.isSelected());
         int strand=0;
         if(jRadioButton7.isSelected())
@@ -916,6 +953,18 @@ public class GraphicUserInterface extends javax.swing.JFrame {
             System.setErr(stderr);
     }//GEN-LAST:event_jTabbedPane1MouseClicked
 
+    private void jRadioButton14ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jRadioButton14ActionPerformed
+        jRadioButton9.setEnabled(true);
+        jRadioButton10.setEnabled(true);
+    }//GEN-LAST:event_jRadioButton14ActionPerformed
+
+    private void jRadioButton13ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jRadioButton13ActionPerformed
+        jRadioButton9.setSelected(true);
+        jRadioButton9.setEnabled(false);
+        jRadioButton10.setSelected(false);
+        jRadioButton10.setEnabled(false);
+    }//GEN-LAST:event_jRadioButton13ActionPerformed
+
     
     private void updateTextAreaLog(final String text, final javax.swing.JTextArea jTextAreaLog){
         SwingUtilities.invokeLater(new Runnable(){
@@ -996,6 +1045,7 @@ public class GraphicUserInterface extends javax.swing.JFrame {
     private javax.swing.ButtonGroup buttonGroupCountNHTag;
     private javax.swing.ButtonGroup buttonGroupCountRemovePCR;
     private javax.swing.ButtonGroup buttonGroupCountStrand;
+    private javax.swing.ButtonGroup buttonGroupOnlyUniq;
     private javax.swing.ButtonGroup buttonGroupUniqNHTag;
     private javax.swing.JButton jButton3;
     private javax.swing.JButton jButton5;
@@ -1010,6 +1060,7 @@ public class GraphicUserInterface extends javax.swing.JFrame {
     private javax.swing.JFileChooser jFileChooser;
     private javax.swing.JFileChooser jFileSaver;
     private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel10;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
@@ -1030,6 +1081,8 @@ public class GraphicUserInterface extends javax.swing.JFrame {
     private javax.swing.JRadioButton jRadioButton10;
     private javax.swing.JRadioButton jRadioButton11;
     private javax.swing.JRadioButton jRadioButton12;
+    private javax.swing.JRadioButton jRadioButton13;
+    private javax.swing.JRadioButton jRadioButton14;
     private javax.swing.JRadioButton jRadioButton2;
     private javax.swing.JRadioButton jRadioButton3;
     private javax.swing.JRadioButton jRadioButton4;

@@ -28,6 +28,7 @@ public class HiTSeq {
                     + "           count      Given annotation in struc/gtf/bed format, output table of read count of each gene for the input alignments\n"
                     + "           rpkm       Given annotation in struc/gtf/bed format, output table of RPKM of each gene for the input alignment\n"
                     + "           uniq       Extract uniquely mapped reads from the input alignment\n"
+                    + "           correct    Correct the proper-paired flag for paired-ended RNA-seq data based on annotation\n"
                     + "           tostruc    Transform annotation into struc format\n"
                     + "           tojuncs    Combine and transform junction list(s) into a junction list in 'juncs' format\n"
                     + "           toevents   Combine the junction list(s) and generate alternative splicing events\n"
@@ -99,6 +100,46 @@ public class HiTSeq {
 
         int numUniqueReads = processor.extractUniquelyMappedReads(outputSam, true, sameChrIsEnough);
         System.out.println("Total Number of Uniquely Mapped Reads of " + args[1] + ": " + numUniqueReads);
+    }
+    
+    /**
+     * The program to run "correct" command
+     * @param args the command line arguments
+     */
+    private static void runProperCorrect(String[] args){
+        String cmd = args[0];
+        if (args.length == 1 || args[1].equals("-h")) {
+            System.err.println("\nThis is the help of '" + cmd.toLowerCase() + "' command of HiTSeq.");
+            System.err.println("Usage: java -jar HiTSeq.jar " + cmd.toLowerCase() + " [options] <annotation.struc> <in.bam> [out.bam]\n"
+                    + "   Or: HiTSeq.sh " + cmd.toLowerCase() + " [options] <annotation.struc> <in.bam> [out.bam]");
+            System.err.println("\n"
+                    + "Options: -h        This help page\n"
+                    + "         -s [int]  Strandedness (default: 0 - no strand information; 1 - same strandness; -1 - opposite strandness)\n"
+                    + "         -a [str]  The file type of annotation file (default: struc format; options: struc/gtf/gff3/bed)\n");
+            System.exit(0);
+        }
+        
+        ParameterSet parameters = new ParameterSet(cmd);
+        parameters.readCommandLineArgs(args);
+        
+        int strandSpecific = parameters.getStrandedness();
+        String annotFormat = parameters.getAnnotFormat();
+        String pathAnnotation = args[parameters.getFirstSAMIdx()];
+        Annotation annotation = new Annotation(new File(pathAnnotation), annotFormat);
+        
+        File inputSam = new File(args[parameters.getFirstSAMIdx()+1]);
+        MappingProcessor processor = new MappingProcessor(inputSam);
+        File outputSam;
+        if (args.length > parameters.getFirstSAMIdx()+2) {
+            outputSam = new File(args[parameters.getFirstSAMIdx()+2]);
+        } else {
+            String parentDir = inputSam.getParent();
+            String output = parentDir + "/corrected." + inputSam.getName();
+            outputSam = new File(output);
+        }
+        
+        int numCorrected = processor.reassignProperPairFlag(outputSam, strandSpecific, annotation);
+        System.out.println("Total Number of Corrected Pairs: "+numCorrected);
     }
     
     /**
@@ -179,10 +220,11 @@ public class HiTSeq {
                     + "Options: -h        This help page\n"
                     + "         -s [int]  Strandedness (default: 0 - no strand information; 1 - same strandness; -1 - opposite strandness)\n"
                     + "         -n        For reads mapped to n-loci, assign 1/n read to each hit\n"
+                    + "         -u        Only consider reads with NH:i:1, i.e. uniquely mapped reads, if the data is single-ended\n"
                     + "         -c        Do read collapse to remove PCR duplicates\n"
                     + "         -m [int]  The mode to deal with multi-gene hits (default: mode 0 - abandon ambiguous reads; options: 0-3)\n"
                     + "         -t [int]  The maximum iteration time to assign ambiguous reads (default: 2). Only work with -m 3\n"
-                    + "         -a [str]  The file type of annotation file (default: struc format; options: struc/gtf/bed)\n"
+                    + "         -a [str]  The file type of annotation file (default: struc format; options: struc/gtf/gff3/bed)\n"
                     + "         -p        When paired-ended data is provided, the proper paired flag will not be considered\n");
             System.exit(0);
         }
@@ -193,6 +235,7 @@ public class HiTSeq {
 
         int strandSpecific = parameters.getStrandedness();
         boolean considerNH = parameters.getConsiderNHTag();
+        boolean onlyUnique = parameters.getOnlyUnique();
         boolean readCollapse = parameters.getReadCollapseTag();
         int modeForMultiGenesOverlap = parameters.getModeForMultiGenesOverlap();
         int iterationLimit = parameters.getIterationLimit();
@@ -223,7 +266,7 @@ public class HiTSeq {
             // Read counting
             annotation.resetPointer();
             ReadCounter counter = new ReadCounter(mappingFile, annotation, strandSpecific, modeForMultiGenesOverlap, sameChrIsEnough);
-            counter.estimateCounts(considerNH, readCollapse, iterationLimit);
+            counter.estimateCounts(considerNH, onlyUnique, readCollapse, iterationLimit);
             HashMap<String, Double> count = counter.getCounts();
             for (String gene : count.keySet()) {
                 readCount.get(gene).put(args[i], count.get(gene));
@@ -325,6 +368,7 @@ public class HiTSeq {
                     + "Options: -h        This help page\n"
                     + "         -a [str]  The file type of junction annotation file (default: juncs format; options: juncs/bed[tophat output]/gtf/bam/events)\n"
                     + "         -n        For reads mapped to n-loci, only assign 1/n read to each hit\n"
+                    + "         -u        Only consider reads with NH:i:1, i.e. uniquely mapped reads, if the data is single-ended\n"
                     + "         -c        Do read collapse to remove PCR duplicates\n"
                     + "         -s [int]  Strandedness of BAM/SAM input (default: 0 [no strand information]; 1/-1 [same/opposite strandness]; only work with '-a bam')\n"
                     + "         -e        Output the counting for events instead of junctions\n");
@@ -337,6 +381,7 @@ public class HiTSeq {
 
         int strandSpecific = parameters.getStrandedness();
         boolean considerNH = parameters.getConsiderNHTag();
+        boolean onlyUnique = parameters.getOnlyUnique();
         boolean readCollapse = parameters.getReadCollapseTag();
         String juncType = parameters.getAnnotFormat();
         boolean outputForEvents = parameters.getOutputForEventsTag();
@@ -386,7 +431,7 @@ public class HiTSeq {
 
             // Read counting
             ReadCounter counter = new ReadCounter(mappingFile, junctions, strandSpecific);
-            counter.estimateJunctionCounts(considerNH, readCollapse);
+            counter.estimateJunctionCounts(considerNH, onlyUnique, readCollapse);
             HashMap<Junction, Double> count = counter.getJunctionCounts();
             for (Junction junc : count.keySet()) {
                 juncCount.get(junc).put(args[i], count.get(junc));
@@ -498,6 +543,9 @@ public class HiTSeq {
         else if(cmd.equalsIgnoreCase("countjunc")){
             runJunctionCounting(args);
         }
+        else if(cmd.equalsIgnoreCase("correct")){
+            runProperCorrect(args);
+        }
         
         else if(cmd.equalsIgnoreCase("test")){ // a command for test only
             runTest(args);
@@ -522,6 +570,7 @@ public class HiTSeq {
         private int firstSAMIndex;
         private int strandSpecific;
         private boolean considerNH;
+        private boolean onlyUnique;
         private boolean readCollapse;
         private int modeForMultiGenesOverlap;
         private int iterationLimit;
@@ -534,6 +583,7 @@ public class HiTSeq {
             if(cmd.equalsIgnoreCase("count") || cmd.equalsIgnoreCase("rpkm")){
                 strandSpecific = 0;
                 considerNH = false;
+                onlyUnique = false;
                 readCollapse = false;
                 modeForMultiGenesOverlap = 0;
                 iterationLimit = 2;
@@ -542,10 +592,14 @@ public class HiTSeq {
                 annotFormat = "juncs";
                 strandSpecific = 0;
                 considerNH = false;
+                onlyUnique = false;
                 readCollapse = false;
                 outputForEvents = false;
             } else if(cmd.equalsIgnoreCase("tostruc")){
                 annotFormat="gtf";
+            } else if(cmd.equalsIgnoreCase("corrent")){
+                strandSpecific = 0;
+                annotFormat = "struc";
             }
         }
         
@@ -559,6 +613,10 @@ public class HiTSeq {
         
         boolean getConsiderNHTag(){
             return(considerNH);
+        }
+        
+        boolean getOnlyUnique(){
+            return(onlyUnique);
         }
         
         boolean getReadCollapseTag(){
@@ -616,6 +674,9 @@ public class HiTSeq {
                             case "n":
                                 this.considerNH=true;
                                 break;
+                            case "u":
+                                this.onlyUnique=true;
+                                break;
                             case "c":
                                 this.readCollapse=true;
                                 break;
@@ -668,7 +729,7 @@ public class HiTSeq {
                                         System.err.println("\nParameter error. The mode should be one of \"juncs\", \"gtf\", \"bed\", \"bam\" and \"events\".\n");
                                         System.exit(0);
                                     } 
-                                } else if (cmd.equalsIgnoreCase("count") || cmd.equalsIgnoreCase("rpkm") || cmd.equalsIgnoreCase("tostruc")) {
+                                } else if (cmd.equalsIgnoreCase("count") || cmd.equalsIgnoreCase("rpkm") || cmd.equalsIgnoreCase("tostruc") || cmd.equalsIgnoreCase("correct")) {
                                     if ((!this.annotFormat.equalsIgnoreCase("gtf")) && (!this.annotFormat.equalsIgnoreCase("gff3")) && (!this.annotFormat.equalsIgnoreCase("bed")) && (!this.annotFormat.equalsIgnoreCase("struc"))) {
                                         System.err.println("\nParameter error. The mode should be one of \"struc\", \"gtf\" and \"bed\".\n");
                                         System.exit(0);

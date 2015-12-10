@@ -173,17 +173,19 @@ public class ReadCounter {
      *
      * @param considerNHAttrib If true, use NH attribute in the SAM record to
      * separate uniquely and multiply mapped reads.
+     * @param onlyUnique If true, only consider the reads with NH=1 tag if it is
+     * single-ended reads
      * @param readCollapse If true, collapse the plausible PCR duplicates, i.e.
      * reads with the same mapping chromosome, strand, coordinate and cigar,
      * into one read.
      * @param convergLimit The upper limit of iteration time if the counter is
      * set to use iteration to better assign ambiguous reads to genes.
      */
-    public void estimateCounts(boolean considerNHAttrib, boolean readCollapse, int convergLimit) {
+    public void estimateCounts(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse, int convergLimit) {
         if (modeForMultiGenesOverlap < 3) {
-            estimateCountsSimply(considerNHAttrib, readCollapse);
+            estimateCountsSimply(considerNHAttrib, onlyUnique, readCollapse);
         } else if (modeForMultiGenesOverlap == 3) {
-            estimateCountsIteratively(considerNHAttrib, readCollapse, convergLimit);
+            estimateCountsIteratively(considerNHAttrib, onlyUnique, readCollapse, convergLimit);
         }
     }
 
@@ -194,6 +196,8 @@ public class ReadCounter {
      *
      * @param considerNHAttrib If true, use NH attribute in the SAM record to
      * separate uniquely and multiply mapped reads.
+     * @param onlyUnique If true, only consider the reads with NH=1 tag if it is
+     * single-ended reads
      * @param readCollapse If true, use NH attribute in the SAM record to
      * separate uniquely and multiply mapped reads.
      * @param modeForMultiGenesOverlap The mode to process ambiguous reads. 0
@@ -202,7 +206,7 @@ public class ReadCounter {
      * @param markAmbiguous If true, output the ambiguous reads to a temp BAM
      * file.
      */
-    private void estimateCountsSimply(boolean considerNHAttrib, boolean readCollapse, int modeForMultiGenesOverlap, boolean markAmbiguous) {
+    private void estimateCountsSimply(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse, int modeForMultiGenesOverlap, boolean markAmbiguous) {
         totalNumReads = 0;
         int numNoFeature = 0, numAmbiguous = 0;
         boolean notifyPairedCollapse = false;
@@ -231,6 +235,8 @@ public class ReadCounter {
                 if (record.getReadUnmappedFlag()) // skip if this read is unmapped
                     continue;
                 if (record.getReadPairedFlag() && (!record.getProperPairFlag() && (!sameChrIsEnough || !record.getReferenceName().equals(record.getMateReferenceName())))) // skip if the read if paired but not in the proper paired mapping
+                    continue;
+                if ((! record.getReadPairedFlag()) && onlyUnique && record.getIntegerAttribute("NH") != null && (! record.getIntegerAttribute("NH").equals(1)))
                     continue;
 
                 List<AlignmentBlock> hitsList = record.getAlignmentBlocks();
@@ -405,15 +411,16 @@ public class ReadCounter {
      * overlapping with each feature (gene, peak, etc) in the annotation, no
      * iteration. The mode to process ambiguous reads is the one set to the
      * ReadCounter object
-     *
+     * @param onlyUnique If true, only consider the reads with NH=1 tag if it is
+     * single-ended reads
      * @param considerNHAttrib If true, use NH attribute in the SAM record to
      * separate uniquely and multiply mapped reads.
      * @param readCollapse If true, collapse the plausible PCR duplicates, i.e.
      * reads with the same mapping chromosome, strand, coordinate and cigar,
      * into one read.
      */
-    void estimateCountsSimply(boolean considerNHAttrib, boolean readCollapse) {
-        estimateCountsSimply(considerNHAttrib, readCollapse, this.modeForMultiGenesOverlap, false);
+    void estimateCountsSimply(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse) {
+        estimateCountsSimply(considerNHAttrib, onlyUnique, readCollapse, this.modeForMultiGenesOverlap, false);
     }
 
     /**
@@ -433,14 +440,16 @@ public class ReadCounter {
      *
      * @param considerNHAttrib If true, use NH attribute in the SAM record to
      * separate uniquely and multiply mapped reads.
+     * @param onlyUnique If true, only consider the reads with NH=1 tag if it is
+     * single-ended reads
      * @param readCollapse If true, collapse the plausible PCR duplicates, i.e.
      * reads with the same mapping chromosome, strand, coordinate and cigar,
      * into one read.
      * @param convergLimit The upper limit of iteration time if the counter is
      * set to use iteration to better assign ambiguous reads to genes.
      */
-    private void estimateCountsIteratively(boolean considerNHAttrib, boolean readCollapse, int convergLimit) {
-        estimateCountsSimply(considerNHAttrib, readCollapse, 0, true);
+    private void estimateCountsIteratively(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse, int convergLimit) {
+        estimateCountsSimply(considerNHAttrib, onlyUnique, readCollapse, 0, true);
         estimateRPKM(0);
 
         boolean continueIterate = true;
@@ -560,7 +569,7 @@ public class ReadCounter {
      * reads with the same mapping chromosome, strand, coordinate and cigar,
      * into one read.
      */
-    void estimateJunctionCounts(boolean considerNHAttrib, boolean readCollapse) {
+    void estimateJunctionCounts(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse) {
         int numJuncReads = 0;
         boolean notifyPairedCollapse=false;
         HashMap<String, HashSet<Junction>> juncListChrom = junctions.getJunctions();
@@ -576,6 +585,10 @@ public class ReadCounter {
                     continue;
                 }
                 if (record.getReadPairedFlag() && (!record.getProperPairFlag())) // skip if the read if paired but not in the proper paired mapping
+                {
+                    continue;
+                }
+                if ((! record.getReadPairedFlag()) && onlyUnique && record.getIntegerAttribute("NH")!=null && (! record.getIntegerAttribute("NH").equals(1)))
                 {
                     continue;
                 }

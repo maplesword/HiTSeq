@@ -38,6 +38,24 @@ public class SAMRecordProcessor {
         return(this.annotation);
     }
     
+    String recordToString(){
+        String readName = record.getReadName();
+        readName = readName.replaceAll("[12]$", "");
+        String readRef = record.getReferenceName();
+        String readStart = Integer.toString(record.getAlignmentStart());
+        String readStrand = Boolean.toString(! record.getReadNegativeStrandFlag());
+        return(readName+"|"+readRef+"|"+readStart+"|"+readStrand);
+    }
+    
+    String recordMateToString(){
+        String readName = record.getReadName();
+        readName = readName.replaceAll("[12]$", "");
+        String mateRef = record.getMateReferenceName();
+        String mateStart = Integer.toString(record.getMateAlignmentStart());
+        String mateStrand = Boolean.toString(! record.getMateNegativeStrandFlag());
+        return(readName+"|"+mateRef+"|"+mateRef+"|"+mateStrand);
+    }
+    
     ArrayList<String> getOverlapGenes(int strandSpecific){
         ArrayList<String> overlappedGenes=new ArrayList<>();
         List<AlignmentBlock> hitsList=record.getAlignmentBlocks();
@@ -66,7 +84,16 @@ public class SAMRecordProcessor {
             while(currentGeneStart<=alignmentEnd){ 
                 // this gene regions is overlapping with the read region
                 if((alignmentStart <= currentGeneStart && currentGeneStart <= alignmentEnd) || (currentGeneStart <= alignmentStart && alignmentStart <= currentGeneEnd))
-                    if((strandSpecific==0) || (strandSpecific==1 && strand.equals(annotation.getGeneStrand(currentGene))) || (strandSpecific==-1 && (!strand.equals(annotation.getGeneStrand(currentGene)))))
+                    if(record.getReadPairedFlag()){
+                        if(strandSpecific==0
+                                || (strandSpecific==1 && record.getFirstOfPairFlag() && strand.equals(annotation.getGeneStrand(currentGene)))
+                                || (strandSpecific==1 && record.getSecondOfPairFlag() && (! strand.equals(annotation.getGeneStrand(currentGene))))
+                                || (strandSpecific==-1 && record.getFirstOfPairFlag() && (! strand.equals(annotation.getGeneStrand(currentGene))))
+                                || (strandSpecific==-1 && record.getSecondOfPairFlag() && strand.equals(annotation.getGeneStrand(currentGene))))
+                                overlappedGenes.add(currentGene);
+                    } else if((strandSpecific==0) 
+                            || (strandSpecific==1 && strand.equals(annotation.getGeneStrand(currentGene))) 
+                            || (strandSpecific==-1 && (!strand.equals(annotation.getGeneStrand(currentGene)))))
                         overlappedGenes.add(currentGene);
 
                 additionalIndex++;
