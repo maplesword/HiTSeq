@@ -217,4 +217,25 @@ public class Transcript {
         
         return(answer);
     }
+    
+    public double getQuantileAtPosition(String chrom, String strand, int pos){
+        if(this.chrom.equals(chrom) && this.strand.equals(strand) && this.start <= pos && this.end >= pos){
+            double quantile = 0;
+            for (Exon exon : exons) {
+                if (pos < exon.getStart()) {
+                    return -1;
+                } else if (pos <= exon.getEnd()) {
+                    quantile += pos - exon.getStart() + 1;
+                    break;
+                } else {
+                    quantile += exon.getLength();
+                }
+            }
+            quantile /= this.getTotalExonLength();
+            if(strand == "-")
+                quantile = 1-quantile;
+            return quantile;
+        }
+        return -1;
+    }
 }

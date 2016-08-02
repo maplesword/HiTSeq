@@ -27,6 +27,7 @@ public class HiTSeq {
                     + "           info       Output information of mapping, including total number of reads, mapped reads, etc\n"
                     + "           count      Given annotation in struc/gtf/bed format, output table of read count of each gene for the input alignments\n"
                     + "           rpkm       Given annotation in struc/gtf/bed format, output table of RPKM of each gene for the input alignment\n"
+                    + "           bias       Given annotation in struc/gtf/bed format, estimate the 3'-bias by summarizing all the genes\n"
                     + "           uniq       Extract uniquely mapped reads from the input alignment\n"
                     + "           correct    Correct the proper-paired flag for paired-ended RNA-seq data based on annotation\n"
                     + "           tostruc    Transform annotation into struc format\n"
@@ -41,15 +42,26 @@ public class HiTSeq {
      * @param args the command line arguments
      */
     private static void runTest(String[] args){
-        htsjdk.samtools.SamReader reader = htsjdk.samtools.SamReaderFactory.makeDefault().open(new File(args[1]));
-        reader.getFileHeader().setSortOrder(SAMFileHeader.SortOrder.queryname);
-        htsjdk.samtools.SAMFileWriter writer = new htsjdk.samtools.SAMFileWriterFactory().makeBAMWriter(reader.getFileHeader(), false, new File(args[2]));
-        for (htsjdk.samtools.SAMRecord record : reader) {
-            //writer.addAlignment(record);
-            System.out.print(record.getSAMString());
+        // read annotation
+        String pathAnnotation = args[1];
+        Annotation annotation = new Annotation(new File(pathAnnotation), "struc");
+
+        String pathMapping = args[2];
+        File mappingFile = new File(pathMapping);
+
+        // Read counting
+        annotation.resetPointer();
+        ReadCounter counter = new ReadCounter(mappingFile, annotation, 0, 0, true);
+        counter.estimateBias(false, true, false);
+        HashMap<String, double[]> counts = counter.getNumReadsEachInterval();
+        
+        // output
+        for(String gene : counts.keySet()){
+            String values = "";
+            for(double count : counts.get(gene))
+                values = values + "\t" + String.valueOf(count);
+            System.out.println(gene + "\t" + counts.get(gene).length + "\t" + values);
         }
-        htsjdk.samtools.util.CloserUtil.close(reader);
-        htsjdk.samtools.util.CloserUtil.close(writer);
     }
     
     /**
@@ -241,6 +253,7 @@ public class HiTSeq {
         int iterationLimit = parameters.getIterationLimit();
         String annotFormat = parameters.getAnnotFormat();
         boolean sameChrIsEnough = parameters.getSameChrIsEnough();
+        boolean verbose = parameters.getVerbose();
 
         int firstSAMIndex = parameters.getFirstSAMIdx();
 
@@ -266,7 +279,7 @@ public class HiTSeq {
             // Read counting
             annotation.resetPointer();
             ReadCounter counter = new ReadCounter(mappingFile, annotation, strandSpecific, modeForMultiGenesOverlap, sameChrIsEnough);
-            counter.estimateCounts(considerNH, onlyUnique, readCollapse, iterationLimit);
+            counter.estimateCounts(considerNH, onlyUnique, readCollapse, iterationLimit, verbose);
             HashMap<String, Double> count = counter.getCounts();
             for (String gene : count.keySet()) {
                 readCount.get(gene).put(args[i], count.get(gene));
@@ -510,6 +523,68 @@ public class HiTSeq {
         }
     }
 
+        /**
+     * Run the program of "bias" command
+     * @param args the command line arguments
+     */
+    private static void runBias(String[] args){
+        String cmd=args[0];
+        if (args.length == 1 || args[1].equals("-h")) {
+            System.err.println("\nThis is the help of '" + cmd.toLowerCase() + "' command of HiTSeq.");
+            System.err.println("Usage: java -jar HiTSeq.jar " + cmd.toLowerCase() + " [options] <annotation.struc> <in.bam> [in2.bam ...]\n"
+                    + "   Or: HiTSeq.sh " + cmd.toLowerCase() + " [options] <annotation.struc> <in.bam> [in2.bam ...]");
+            System.err.println("\n"
+                    + "Options: -h        This help page\n"
+                    + "         -s [int]  Strandedness (default: 0 - no strand information; 1 - same strandness; -1 - opposite strandness)\n"
+                    + "         -n        For reads mapped to n-loci, assign 1/n read to each hit\n"
+                    + "         -u        Only consider reads with NH:i:1, i.e. uniquely mapped reads, if the data is single-ended\n"
+                    + "         -c        Do read collapse to remove PCR duplicates\n"
+                    + "         -m [int]  The mode to deal with multi-gene hits (default: mode 0 - abandon ambiguous reads; options: 0/1)\n"
+                    + "         -a [str]  The file type of annotation file (default: struc format; options: struc/gtf/gff3/bed)\n"
+                    + "         -i [int]  The number of intervals to check the 3'-bias\n"
+                    + "         -e [int]  Whether to use mean or median read proportion (default: 0 - mean; 1 - median)\n");
+            System.exit(0);
+        }
+
+        // read the parameters
+        ParameterSet parameters = new ParameterSet(cmd);
+        parameters.readCommandLineArgs(args);
+
+        int strandSpecific = parameters.getStrandedness();
+        boolean considerNH = parameters.getConsiderNHTag();
+        boolean onlyUnique = parameters.getOnlyUnique();
+        boolean readCollapse = parameters.getReadCollapseTag();
+        int modeForMultiGenesOverlap = parameters.getModeForMultiGenesOverlap();
+        String annotFormat = parameters.getAnnotFormat();
+        int numIntervals = parameters.getNumIntervals();
+        boolean useMedian = parameters.useMedian();
+
+        int firstSAMIndex = parameters.getFirstSAMIdx();
+        
+        // read annotation
+        String pathAnnotation = args[firstSAMIndex];
+        Annotation annotation = new Annotation(new File(pathAnnotation), annotFormat);
+        firstSAMIndex++;
+
+        for (int i = firstSAMIndex; i < args.length; i++) {
+            String pathMapping = args[i];
+            File mappingFile = new File(pathMapping);
+
+            // Read counting
+            annotation.resetPointer();
+            ReadCounter counter = new ReadCounter(mappingFile, annotation, strandSpecific, modeForMultiGenesOverlap, true, numIntervals);
+            counter.estimateBias(considerNH, onlyUnique, readCollapse);
+            double[] counts = counter.getAverageProportionReadsEachInterval(useMedian);
+            
+            // output
+            String values = "";
+            for(double count : counts)
+                values = values + "\t" + String.valueOf(count);
+            System.out.println(pathMapping + "\t" + values);
+            
+            System.err.println("done counting for file: " + pathMapping);
+        }
+    }
     
     
     
@@ -530,6 +605,9 @@ public class HiTSeq {
         }
         else if(cmd.equalsIgnoreCase("count") || cmd.equalsIgnoreCase("rpkm")){
             runReadCounting(args);
+        }
+        else if(cmd.equalsIgnoreCase("bias")){
+            runBias(args);
         }
         else if(cmd.equalsIgnoreCase("uniq")){
             runUniq(args);
@@ -577,6 +655,9 @@ public class HiTSeq {
         private String annotFormat;
         private boolean outputForEvents=false;
         private boolean sameChrIsEnough=false;
+        private boolean verbose=false;
+        private int numIntervals;
+        private boolean useMedian = false;
         
         ParameterSet(String cmd){
             firstSAMIndex=1;
@@ -600,6 +681,14 @@ public class HiTSeq {
             } else if(cmd.equalsIgnoreCase("corrent")){
                 strandSpecific = 0;
                 annotFormat = "struc";
+            } else if(cmd.equalsIgnoreCase("bias")){
+                strandSpecific = 0;
+                considerNH = false;
+                onlyUnique = false;
+                readCollapse = false;
+                modeForMultiGenesOverlap = 0;
+                annotFormat = "struc";
+                numIntervals = 100;
             }
         }
         
@@ -641,6 +730,18 @@ public class HiTSeq {
         
         boolean getSameChrIsEnough(){
             return(sameChrIsEnough);
+        }
+        
+        boolean getVerbose(){
+            return(verbose);
+        }
+        
+        int getNumIntervals(){
+            return(numIntervals);
+        }
+        
+        boolean useMedian(){
+            return useMedian;
         }
         
         void readCommandLineArgs(String[] args){
@@ -692,6 +793,9 @@ public class HiTSeq {
                                    if(this.modeForMultiGenesOverlap>3 || this.modeForMultiGenesOverlap<0){
                                        System.err.println("\nParameter error. The mode should be int 0-3.\n");
                                        System.exit(0);
+                                   } else if(cmd.equalsIgnoreCase("bias") && this.modeForMultiGenesOverlap > 1){
+                                       System.err.println("\nParameter error. The mode should be int 0/1 for command bias.\n");
+                                       System.exit(0);
                                    }
                                 } catch(java.lang.NumberFormatException e){
                                    System.err.println("\nParameter error. The mode should be int 0-3.\n");
@@ -737,10 +841,48 @@ public class HiTSeq {
                                 }
                                 break;
                             case "e":
-                                outputForEvents=true;
+                                if(cmd.equalsIgnoreCase("bias")){
+                                    idx=optionsString.indexOf("e");
+                                    if(idx<optionsString.length()-1){
+                                        System.err.println("\nParameter error. The average mode needs to be given.\n");
+                                        System.exit(0);
+                                    }
+                                    this.firstSAMIndex++;
+                                    try{
+                                        this.useMedian=Integer.parseInt(args[this.firstSAMIndex]) == 1;
+                                        if(! this.useMedian && Integer.parseInt(args[this.firstSAMIndex]) != 0)
+                                            System.err.println("Warning: the given average mode is neither 0 nor 1: use default (0 for mean)");
+                                    } catch(java.lang.NumberFormatException e){
+                                        System.err.println("\nParameter error. The average mode should be int 0/1.\n");
+                                        System.exit(0);
+                                    }
+                                } else{
+                                    outputForEvents=true;
+                                }
                                 break;
                             case "p":
                                 sameChrIsEnough=true;
+                                break;
+                            case "v":
+                                verbose = true;
+                                break;
+                            case "i":
+                                idx=optionsString.indexOf("i");
+                                if(idx<optionsString.length()-1){
+                                    System.err.println("\nParameter error. The number of intervals needs to be given.\n");
+                                    System.exit(0);
+                                }
+                                this.firstSAMIndex++;
+                                try{
+                                   this.numIntervals=Integer.parseInt(args[this.firstSAMIndex]);
+                                   if(this.numIntervals < 2){
+                                       System.err.println("\nParameter error. The number of intervals should be int >= 2.\n");
+                                       System.exit(0);
+                                   }
+                                } catch(java.lang.NumberFormatException e){
+                                   System.err.println("\nParameter error. The mode should be int >= 2.\n");
+                                   System.exit(0);
+                                }
                                 break;
                             default:
                                 System.err.println("\nParameter error. No parameter "+option+"\n");

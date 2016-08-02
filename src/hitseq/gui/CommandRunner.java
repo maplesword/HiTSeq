@@ -130,7 +130,7 @@ public class CommandRunner extends Thread{
                 break;
             annotation.resetPointer();
             ReadCounter counter = new ReadCounter(mappingFile, annotation, strandSpecific, 0, false);
-            counter.estimateCounts(considerNH, onlyUnique, readCollapse, stepLength);
+            counter.estimateCounts(considerNH, onlyUnique, readCollapse, stepLength, false);
             HashMap<String, Double> count = counter.getCounts();
             
             for (String gene : count.keySet()) {

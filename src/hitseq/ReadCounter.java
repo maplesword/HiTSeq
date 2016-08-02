@@ -11,6 +11,7 @@ import htsjdk.samtools.*;
 import htsjdk.samtools.util.CloserUtil;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -30,6 +31,8 @@ public class ReadCounter {
     private double totalNumReads;
     private HashMap<String, Double> counts;
     private HashMap<String, Double> rpkm;
+    private HashMap<String, double[]> numReadsInIntervals;
+    private int numIntervals;
     private JunctionSet junctions;
     private HashMap<Junction, Double> junctionCounts;
     private boolean sameChrIsEnough;
@@ -43,8 +46,13 @@ public class ReadCounter {
      * strand information, 1 for with the same strand, -1 for with the opposite
      * strand.
      * @param modeForMultiGenesOverlap The mode to process ambiguous reads.
+     * @param sameChrIsEnough When paired-ended data is used, whether is enough 
+     * to count when the two mates are mapped to the same chromosome but marked 
+     * as improper.
+     * @param numIntervals The number of intervals to consider when the read 
+     * counting is to quantify the 3'-bias instead of gene expression
      */
-    public ReadCounter(File file, Annotation annotation, int strandSpecific, int modeForMultiGenesOverlap, boolean sameChrIsEnough) {
+    public ReadCounter(File file, Annotation annotation, int strandSpecific, int modeForMultiGenesOverlap, boolean sameChrIsEnough, int numIntervals) {
         if (!file.exists()) {
             System.err.println("Cannot find input file: " + file.getAbsolutePath());
             System.exit(1);
@@ -54,7 +62,14 @@ public class ReadCounter {
         this.strandSpecific = strandSpecific;
         this.modeForMultiGenesOverlap = modeForMultiGenesOverlap;
         this.sameChrIsEnough = sameChrIsEnough;
-
+        
+        this.numIntervals = numIntervals;
+        this.numReadsInIntervals = new HashMap<>();
+        for(String gene : annotation.getGeneSet()){
+            numReadsInIntervals.put(gene, new double[numIntervals]);
+            for(int i = 0; i < numIntervals; i++)
+                numReadsInIntervals.get(gene)[i] = 0;
+        }
         totalNumReads = 0;
         this.calculatedRPKM = false;
         counts = new HashMap<>();
@@ -71,6 +86,18 @@ public class ReadCounter {
                 junctionCounts.put(junction, 0.0);
             }
         }
+    }
+    
+    /**
+     * Generate a ReadCounter object with given annotation, setting the number of intervals as 100
+     * @param file
+     * @param annotation
+     * @param strandSpecific
+     * @param modeForMultiGenesOverlap
+     * @param sameChrIsEnough 
+     */
+    public ReadCounter(File file, Annotation annotation, int strandSpecific, int modeForMultiGenesOverlap, boolean sameChrIsEnough) {
+        this(file, annotation, strandSpecific, modeForMultiGenesOverlap, sameChrIsEnough, 100);
     }
 
     /**
@@ -103,6 +130,55 @@ public class ReadCounter {
 
     public double getTotalNumReads() {
         return (totalNumReads);
+    }
+    
+    public HashMap<String, double[]> getNumReadsEachInterval() {
+        return numReadsInIntervals;
+    }
+    
+    public double[] getNumReadsEachInterval(String gene){
+        double[] answer = new double[numIntervals];
+        if(numReadsInIntervals.containsKey(gene))
+            answer = numReadsInIntervals.get(gene);
+        else
+            for(int i = 0; i < numIntervals; i++)
+                answer[i] = 0;
+        return answer;
+    }
+    
+    public double[] getAverageProportionReadsEachInterval(boolean useMedian){
+        double[] answer = new double[numIntervals];
+        for(int i = 0; i < answer.length; i++)
+            answer[i] = 0;
+        
+        ArrayList<String> genes = new ArrayList<>();
+        genes.addAll(numReadsInIntervals.keySet());
+        double[][] numReads = new double[numIntervals][numReadsInIntervals.size()];
+        for(int i = 0; i < numReadsInIntervals.size(); i++){
+            double sum = 0;
+            for(int j = 0; j < numIntervals; j++)
+                sum += numReadsInIntervals.get(genes.get(i))[j];
+            for(int j = 0; j < numIntervals; j++)
+                numReads[j][i] = numReadsInIntervals.get(genes.get(i))[j] / sum;
+        }
+        
+        for(int i = 0; i < numReads.length; i++){
+            if(useMedian){
+                Arrays.sort(numReads[i]);
+                int numNonNaN = 0;
+                while(Double.isNaN(numReads[i][numReads[i].length - 1 - numNonNaN]))
+                    numNonNaN++;
+                answer[i] = (numReadsInIntervals.size()-numNonNaN) % 2 == 1 ? numReads[i][(numReadsInIntervals.size()-numNonNaN-1)/2] : (numReads[i][(numReadsInIntervals.size()-numNonNaN)/2-1] + numReads[i][(numReadsInIntervals.size()-numNonNaN)/2]) / 2;
+            } else{
+                for(int j = 0; j < numReads[i].length; j++){
+                    if(! Double.isNaN(numReads[i][j]))
+                        answer[i] += numReads[i][j];
+                }
+                answer[i] /= numReadsInIntervals.size();
+            }
+        }
+        
+        return answer;
     }
 
     public HashMap<String, Double> getCounts() {
@@ -166,6 +242,77 @@ public class ReadCounter {
     void setStrandSpecific(int newStrandSpecific) {
         this.strandSpecific = newStrandSpecific;
     }
+    
+    public void estimateBias(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse){
+        try (SamReader inputSam = SamReaderFactory.makeDefault().open(inputFile)) {
+            inputSam.getFileHeader().setSortOrder(SAMFileHeader.SortOrder.coordinate); // for the possible SAM/BAM file for the ambiguous reads when necessary
+            SAMRecordIterator iterator=inputSam.iterator();
+            iterator.assertSorted(SAMFileHeader.SortOrder.coordinate); // the reads should be sorted by coordinate, for a exception will be thrown out
+
+            String chromLast = "";
+            String strandLast = "";
+            String cigarLast = "";
+            int alignmentStartLast = -1;
+
+            while(iterator.hasNext()){
+                SAMRecord record=iterator.next();
+                if (record.getReadUnmappedFlag()) // skip if this read is unmapped
+                    continue;
+                if (onlyUnique && record.getIntegerAttribute("NH") != null && (! record.getIntegerAttribute("NH").equals(1))) // skip if this read is required to be uniquely mapped but not
+                    continue;
+
+                List<AlignmentBlock> hitsList = record.getAlignmentBlocks();
+                ArrayList<AlignmentBlock> hits = new ArrayList<>();
+                for (AlignmentBlock block : hitsList) {
+                    hits.add(block);
+                }
+                int alignmentStart = hits.get(0).getReferenceStart();
+
+                String chrom = record.getReferenceName();
+                String strand = record.getReadNegativeStrandFlag() ? "-" : "+";
+                String cigar = record.getCigarString();
+
+                // remove PCR artifact if necessary
+                if (readCollapse) {
+                    if (chromLast.equals(chrom) && strandLast.equals(strand) && cigarLast.equals(cigar) && alignmentStartLast == alignmentStart) {
+                        continue;
+                    } else {
+                        chromLast = chrom;
+                        strandLast = strand;
+                        cigarLast = cigar;
+                        alignmentStartLast = alignmentStart;
+                    }
+                }
+
+                // skip if no gene exists in this chromosome in annotation
+                if (!annotation.chromIsExisted(chrom)) {
+                    continue;
+                }
+
+                // get overlapping genes for the record
+                SAMRecordProcessor recordProcessor = new SAMRecordProcessor(record, annotation);
+                ArrayList<String> overlappedGenes = recordProcessor.getOverlapGenes(strandSpecific);
+                
+                double add = 1;
+                if (considerNHAttrib && record.getIntegerAttribute("NH") != null) {
+                    add = add / record.getIntegerAttribute("NH");
+                }
+                if (overlappedGenes.size() == 1 || modeForMultiGenesOverlap == 1) { // Mode 1: For the multi-genes hits, equally assign 1/n to each gene
+                    add /= overlappedGenes.size();
+                    for (String gene : overlappedGenes) {
+                        double[] quantiles = recordProcessor.getGeneBodyQuantile(annotation.getGene(gene), strandSpecific);
+                        int[] idx = new int[]{ (int)Math.floor(quantiles[0]/(1.0/numIntervals)), (int)Math.ceil(quantiles[1]/(1.0/numIntervals))};
+                        //System.err.println(record.getReadName()+"\t"+gene+"\t"+String.valueOf(quantiles[0])+"\t"+String.valueOf(quantiles[1]));
+                        for(int i=idx[0]; i<idx[1]; i++)
+                            numReadsInIntervals.get(gene)[i] += add;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR! " + e + " in estimateCountsSimply at ReadCounter!\n");
+            System.exit(1);
+        }
+    }
 
     /**
      * FunName: estimateCounts. Description: Count reads which are overlapping
@@ -181,14 +328,14 @@ public class ReadCounter {
      * @param convergLimit The upper limit of iteration time if the counter is
      * set to use iteration to better assign ambiguous reads to genes.
      */
-    public void estimateCounts(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse, int convergLimit) {
+    public void estimateCounts(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse, int convergLimit, boolean verbose) {
         if (modeForMultiGenesOverlap < 3) {
-            estimateCountsSimply(considerNHAttrib, onlyUnique, readCollapse);
+            estimateCountsSimply(considerNHAttrib, onlyUnique, readCollapse, verbose);
         } else if (modeForMultiGenesOverlap == 3) {
             estimateCountsIteratively(considerNHAttrib, onlyUnique, readCollapse, convergLimit);
         }
     }
-
+    
     /**
      * FunName: estimateCountsSimply. Description: count reads which are
      * overlapping with each feature (gene, peak, etc) in the annotation, no
@@ -206,7 +353,7 @@ public class ReadCounter {
      * @param markAmbiguous If true, output the ambiguous reads to a temp BAM
      * file.
      */
-    private void estimateCountsSimply(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse, int modeForMultiGenesOverlap, boolean markAmbiguous) {
+    private void estimateCountsSimply(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse, int modeForMultiGenesOverlap, boolean markAmbiguous, boolean verbose) {
         totalNumReads = 0;
         int numNoFeature = 0, numAmbiguous = 0;
         boolean notifyPairedCollapse = false;
@@ -338,6 +485,9 @@ public class ReadCounter {
                     add /= overlappedGenes.size();
                     for (String gene : overlappedGenes) {
                         counts.put(gene, counts.get(gene) + add);
+                        if (verbose){
+                            System.err.println(record.getReadName() + "\t" + gene);
+                        }
                     }
                 } else if (overlappedGenes.size() > 1 && modeForMultiGenesOverlap == 2) { // Mode 2: For the multi-genes hits, randomly assign to one of the gene
                     java.util.Random random = new java.util.Random();
@@ -419,8 +569,8 @@ public class ReadCounter {
      * reads with the same mapping chromosome, strand, coordinate and cigar,
      * into one read.
      */
-    void estimateCountsSimply(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse) {
-        estimateCountsSimply(considerNHAttrib, onlyUnique, readCollapse, this.modeForMultiGenesOverlap, false);
+    void estimateCountsSimply(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse, boolean verbose) {
+        estimateCountsSimply(considerNHAttrib, onlyUnique, readCollapse, this.modeForMultiGenesOverlap, false, verbose);
     }
 
     /**
@@ -449,7 +599,7 @@ public class ReadCounter {
      * set to use iteration to better assign ambiguous reads to genes.
      */
     private void estimateCountsIteratively(boolean considerNHAttrib, boolean onlyUnique, boolean readCollapse, int convergLimit) {
-        estimateCountsSimply(considerNHAttrib, onlyUnique, readCollapse, 0, true);
+        estimateCountsSimply(considerNHAttrib, onlyUnique, readCollapse, 0, true, false);
         estimateRPKM(0);
 
         boolean continueIterate = true;

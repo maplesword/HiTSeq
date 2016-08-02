@@ -5,6 +5,9 @@
 package hitseq;
 
 import hitseq.annotation.Annotation;
+import hitseq.annotation.Gene;
+import hitseq.annotation.Transcript;
+import hitseq.annotation.Exon;
 import htsjdk.samtools.AlignmentBlock;
 import htsjdk.samtools.SAMRecord;
 import java.util.ArrayList;
@@ -139,5 +142,43 @@ public class SAMRecordProcessor {
         }
         overlappedGenes.removeAll(notExonicOverlap);
         return(overlappedGenes);
+    }
+    
+    double[] getGeneBodyQuantile(Gene gene, int strandSpecific){
+        double[] quantiles;
+        String chrom = record.getReferenceName();
+        String strand = record.getReadNegativeStrandFlag() ? "-" : "+";
+        if(strandSpecific == -1)
+            strand = strand.equals("+") ? "-" : "+";
+        
+        if(! gene.getChrom().equals(chrom) ||
+                (strandSpecific != 0 && ! strand.equals(gene.getStrand()))){
+            quantiles = new double[]{-1, -1};
+        } else{
+            int recordStart = record.getAlignmentStart();
+            int recordEnd = record.getAlignmentEnd();
+            Transcript recordTranscript = new Transcript(record.getReadName(), chrom, gene.getStrand(), recordStart, recordEnd);
+            for(int i = 0; i < record.getAlignmentBlocks().size(); i++){
+                AlignmentBlock block = record.getAlignmentBlocks().get(i);
+                Exon exonBlock = new Exon(chrom, gene.getStrand(), block.getReferenceStart(), block.getReferenceStart() + block.getLength() - 1);
+                recordTranscript.addExon(exonBlock);
+            }
+            
+            ArrayList<Exon> overlap = gene.getNonredundantTranscript().getOverlappingRegions(recordTranscript, strandSpecific != 0);
+            if(! overlap.isEmpty()){
+                int first = overlap.get(0).getStart();
+                int last = overlap.get(overlap.size()-1).getEnd();
+                quantiles = new double[]{gene.getNonredundantTranscript().getQuantileAtPosition(chrom, gene.getStrand(), first), gene.getNonredundantTranscript().getQuantileAtPosition(chrom, gene.getStrand(), last)};
+                if(gene.getStrand() == "-"){
+                    double temp = quantiles[1];
+                    quantiles[1] = quantiles[0];
+                    quantiles[0] = temp;
+                }
+            } else{
+                quantiles = new double[]{-1, -1};
+            }
+        }
+        
+        return(quantiles);
     }
 }
