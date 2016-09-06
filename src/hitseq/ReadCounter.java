@@ -5,6 +5,7 @@
 package hitseq;
 
 import hitseq.annotation.Annotation;
+import hitseq.annotation.Gene;
 import hitseq.annotation.Junction;
 import hitseq.annotation.JunctionSet;
 import htsjdk.samtools.*;
@@ -36,6 +37,7 @@ public class ReadCounter {
     private JunctionSet junctions;
     private HashMap<Junction, Double> junctionCounts;
     private boolean sameChrIsEnough;
+    private int readLength;
 
     /**
      * Generate a new ReadCounter object with given annotation
@@ -62,6 +64,7 @@ public class ReadCounter {
         this.strandSpecific = strandSpecific;
         this.modeForMultiGenesOverlap = modeForMultiGenesOverlap;
         this.sameChrIsEnough = sameChrIsEnough;
+        this.readLength = -1;
         
         this.numIntervals = numIntervals;
         this.numReadsInIntervals = new HashMap<>();
@@ -147,17 +150,32 @@ public class ReadCounter {
     }
     
     public double[] getAverageProportionReadsEachInterval(boolean useMedian){
+        return getAverageProportionReadsEachInterval(useMedian, 0, 0);
+    }
+    
+    public double[] getAverageProportionReadsEachInterval(boolean useMedian, int lengthCutoff, double countCutoff){
         double[] answer = new double[numIntervals];
         for(int i = 0; i < answer.length; i++)
             answer[i] = 0;
         
         ArrayList<String> genes = new ArrayList<>();
         genes.addAll(numReadsInIntervals.keySet());
-        double[][] numReads = new double[numIntervals][numReadsInIntervals.size()];
-        for(int i = 0; i < numReadsInIntervals.size(); i++){
-            double sum = 0;
-            for(int j = 0; j < numIntervals; j++)
-                sum += numReadsInIntervals.get(genes.get(i))[j];
+        ArrayList<String> remainingGenes = new ArrayList<>();
+        remainingGenes.addAll(genes);
+        if(lengthCutoff > 0)
+            for(String gene : remainingGenes)
+                if(annotation.getGene(gene).getNonredundantTranscript().getTotalExonLength() < lengthCutoff)
+                    genes.remove(gene);
+        remainingGenes.clear();
+        remainingGenes.addAll(genes);
+        if(countCutoff > 0)
+            for(String gene : remainingGenes)
+                if(counts.get(gene)/annotation.getGene(gene).getNonredundantTranscript().getTotalExonLength()*readLength < countCutoff)
+                    genes.remove(gene);
+        
+        double[][] numReads = new double[numIntervals][genes.size()];
+        for(int i = 0; i < genes.size(); i++){
+            double sum = counts.get(genes.get(i));
             for(int j = 0; j < numIntervals; j++)
                 numReads[j][i] = numReadsInIntervals.get(genes.get(i))[j] / sum;
         }
@@ -168,7 +186,7 @@ public class ReadCounter {
                 int numNonNaN = 0;
                 while(Double.isNaN(numReads[i][numReads[i].length - 1 - numNonNaN]))
                     numNonNaN++;
-                answer[i] = (numReadsInIntervals.size()-numNonNaN) % 2 == 1 ? numReads[i][(numReadsInIntervals.size()-numNonNaN-1)/2] : (numReads[i][(numReadsInIntervals.size()-numNonNaN)/2-1] + numReads[i][(numReadsInIntervals.size()-numNonNaN)/2]) / 2;
+                answer[i] = (numReadsInIntervals.size()-numNonNaN) % 2 == 1 ? numReads[i][(genes.size()-numNonNaN-1)/2] : (numReads[i][(genes.size()-numNonNaN)/2-1] + numReads[i][(genes.size()-numNonNaN)/2]) / 2;
             } else{
                 for(int j = 0; j < numReads[i].length; j++){
                     if(! Double.isNaN(numReads[i][j]))
@@ -256,6 +274,9 @@ public class ReadCounter {
 
             while(iterator.hasNext()){
                 SAMRecord record=iterator.next();
+                int thisReadLength = record.getReadLength();
+                if(thisReadLength > readLength)
+                    readLength = thisReadLength;
                 if (record.getReadUnmappedFlag()) // skip if this read is unmapped
                     continue;
                 if (onlyUnique && record.getIntegerAttribute("NH") != null && (! record.getIntegerAttribute("NH").equals(1))) // skip if this read is required to be uniquely mapped but not
@@ -305,6 +326,7 @@ public class ReadCounter {
                         //System.err.println(record.getReadName()+"\t"+gene+"\t"+String.valueOf(quantiles[0])+"\t"+String.valueOf(quantiles[1]));
                         for(int i=idx[0]; i<idx[1]; i++)
                             numReadsInIntervals.get(gene)[i] += add;
+                        counts.put(gene, counts.get(gene) + add);
                     }
                 }
             }
@@ -378,138 +400,145 @@ public class ReadCounter {
             HashMap<String, SAMRecord> firstRecordOfPair = new HashMap<>();
 
             while(iterator.hasNext()){
-                SAMRecord record=iterator.next();
-                if (record.getReadUnmappedFlag()) // skip if this read is unmapped
-                    continue;
-                if (record.getReadPairedFlag() && (!record.getProperPairFlag() && (!sameChrIsEnough || !record.getReferenceName().equals(record.getMateReferenceName())))) // skip if the read if paired but not in the proper paired mapping
-                    continue;
-                if ((! record.getReadPairedFlag()) && onlyUnique && record.getIntegerAttribute("NH") != null && (! record.getIntegerAttribute("NH").equals(1)))
-                    continue;
-
-                List<AlignmentBlock> hitsList = record.getAlignmentBlocks();
-                ArrayList<AlignmentBlock> hits = new ArrayList<>();
-                for (AlignmentBlock block : hitsList) {
-                    hits.add(block);
-                }
-                int alignmentStart = hits.get(0).getReferenceStart();
-
-                String chrom = record.getReferenceName();
-                String strand = record.getReadNegativeStrandFlag() ? "-" : "+";
-                String cigar = record.getCigarString();
-
-                // remove PCR artifact if necessary (only work for single-ended data)
-                if (readCollapse && !record.getReadPairedFlag()) {
-                    if (chromLast.equals(chrom) && strandLast.equals(strand) && cigarLast.equals(cigar) && alignmentStartLast == alignmentStart) {
+                try{
+                    SAMRecord record=iterator.next();
+                    int thisReadLength = record.getReadLength();
+                    if(thisReadLength > readLength)
+                        readLength = thisReadLength;
+                    if (record.getReadUnmappedFlag()) // skip if this read is unmapped
                         continue;
-                    } else {
-                        chromLast = chrom;
-                        strandLast = strand;
-                        cigarLast = cigar;
-                        alignmentStartLast = alignmentStart;
-                    }
-                } else if (readCollapse && record.getReadPairedFlag() && !notifyPairedCollapse) {
-                    System.err.println("WARNING: Redundant reads removal is not supported for paired-ended RNA-seq data yet.");
-                    notifyPairedCollapse = true;
-                }
-
-                // count total reads
-                if ((record.getReadPairedFlag() && record.getSecondOfPairFlag()) || !record.getReadPairedFlag()) {
-                    if (considerNHAttrib && record.getIntegerAttribute("NH") != null) {
-                        totalNumReads += 1.0 / record.getIntegerAttribute("NH");
-                    } else {
-                        totalNumReads++;
-                    }
-                    if (java.lang.Math.ceil(totalNumReads) % 1000000 == 0) {
-                        System.err.println("reading reads " + Double.valueOf(java.lang.Math.ceil(totalNumReads)).longValue() + "...");
-                    }
-                }
-
-                // skip if no gene exists in this chromosome in annotation
-                if (!annotation.chromIsExisted(chrom)) {
-                    if(record.getReadPairedFlag() && record.getFirstOfPairFlag())
+                    if (record.getReadPairedFlag() && (!record.getProperPairFlag() && (!sameChrIsEnough || !record.getReferenceName().equals(record.getMateReferenceName())))) // skip if the read if paired but not in the proper paired mapping
                         continue;
-                    numNoFeature++;
-                    continue;
-                }
+                    if (onlyUnique && record.getIntegerAttribute("NH") != null && (! record.getIntegerAttribute("NH").equals(1)))
+                        continue;
 
-                // get overlapping genes for the record
-                SAMRecordProcessor recordProcessor = new SAMRecordProcessor(record, annotation);
-                ArrayList<String> overlappedGenes = recordProcessor.getOverlapGenes(strandSpecific);
-
-                if (record.getReadPairedFlag() && record.getFirstOfPairFlag()) { // if this is the first segment of a pair, denote its overlapping genes, and the record as well if needed
-                    String id = record.getReadName();
-                    Pattern pattern=Pattern.compile("\\W[1,2]$");
-                    Matcher matcher=pattern.matcher(id);
-                    if(matcher.find())
-                        id = id.replaceAll("[12]$", "");
-                    id = id + " " + record.getMateReferenceName() + ":" + Integer.toString(record.getMateAlignmentStart());
-
-                    if (!overlappedGenes.isEmpty()) {
-                        HashSet<String> genes = new HashSet<>();
-                        genes.addAll(overlappedGenes);
-                        overlapGenesForPair.put(id, genes);
+                    List<AlignmentBlock> hitsList = record.getAlignmentBlocks();
+                    ArrayList<AlignmentBlock> hits = new ArrayList<>();
+                    for (AlignmentBlock block : hitsList) {
+                        hits.add(block);
                     }
-                    if (markAmbiguous) {
-                        firstRecordOfPair.put(id, record);
+                    int alignmentStart = hits.get(0).getReferenceStart();
+
+                    String chrom = record.getReferenceName();
+                    String strand = record.getReadNegativeStrandFlag() ? "-" : "+";
+                    String cigar = record.getCigarString();
+
+                    // remove PCR artifact if necessary (only work for single-ended data)
+                    if (readCollapse && !record.getReadPairedFlag()) {
+                        if (chromLast.equals(chrom) && strandLast.equals(strand) && cigarLast.equals(cigar) && alignmentStartLast == alignmentStart) {
+                            continue;
+                        } else {
+                            chromLast = chrom;
+                            strandLast = strand;
+                            cigarLast = cigar;
+                            alignmentStartLast = alignmentStart;
+                        }
+                    } else if (readCollapse && record.getReadPairedFlag() && !notifyPairedCollapse) {
+                        System.err.println("WARNING: Redundant reads removal is not supported for paired-ended RNA-seq data yet.");
+                        notifyPairedCollapse = true;
                     }
-                    continue;
-                    
-                } else if (record.getReadPairedFlag() && record.getSecondOfPairFlag()) { // if this is the second segment of a pair, combine the overlapping genes of the two segments
-                    String id = record.getReadName();
-                    Pattern pattern=Pattern.compile("\\W[1,2]$");
-                    Matcher matcher=pattern.matcher(id);
-                    if(matcher.find())
-                        id = id.replaceAll("[12]$", "");
-                    id = id + " " + record.getReferenceName() + ":" + Integer.toString(record.getAlignmentStart());
 
-                    if (overlapGenesForPair.containsKey(id)) {
-                        HashSet<String> genes = overlapGenesForPair.get(id);
-                        genes.addAll(overlappedGenes);
-                        overlappedGenes.clear();
-                        overlappedGenes.addAll(genes);
-
-                        overlapGenesForPair.remove(id);
-                    }
-                }
-                
-                //System.err.println(record.getReadName()+"\t"+overlappedGenes);
-
-                // add count to the genes
-                double add = 1;
-                if (considerNHAttrib && record.getIntegerAttribute("NH") != null) {
-                    add = add / record.getIntegerAttribute("NH");
-                }
-                if (overlappedGenes.isEmpty()) {
-                    numNoFeature++;
-                } else if (overlappedGenes.size() == 1 || modeForMultiGenesOverlap == 1) { // Mode 1: For the multi-genes hits, equally assign 1/n to each gene
-                    add /= overlappedGenes.size();
-                    for (String gene : overlappedGenes) {
-                        counts.put(gene, counts.get(gene) + add);
-                        if (verbose){
-                            System.err.println(record.getReadName() + "\t" + gene);
+                    // count total reads
+                    if ((record.getReadPairedFlag() && record.getSecondOfPairFlag()) || !record.getReadPairedFlag()) {
+                        if (considerNHAttrib && record.getIntegerAttribute("NH") != null) {
+                            totalNumReads += 1.0 / record.getIntegerAttribute("NH");
+                        } else {
+                            totalNumReads++;
+                        }
+                        if (java.lang.Math.ceil(totalNumReads) % 1000000 == 0) {
+                            System.err.println("reading reads " + Double.valueOf(java.lang.Math.ceil(totalNumReads)).longValue() + "...");
                         }
                     }
-                } else if (overlappedGenes.size() > 1 && modeForMultiGenesOverlap == 2) { // Mode 2: For the multi-genes hits, randomly assign to one of the gene
-                    java.util.Random random = new java.util.Random();
-                    int selected = java.lang.Math.abs(random.nextInt()) % overlappedGenes.size();
-                    counts.put(overlappedGenes.get(selected), counts.get(overlappedGenes.get(selected)) + add);
-                } else if (modeForMultiGenesOverlap == 0) { // Mode 0: See the multi-genes hits as ambiguous hits
-                    numAmbiguous++;
-                }
 
-                if (markAmbiguous) { // Mode 3: For the multi-genes hits, save them for the iterative counting
-                    if (record.getReadPairedFlag() && record.getSecondOfPairFlag()) {
+                    // skip if no gene exists in this chromosome in annotation
+                    if (!annotation.chromIsExisted(chrom)) {
+                        if(record.getReadPairedFlag() && record.getFirstOfPairFlag())
+                            continue;
+                        numNoFeature++;
+                        continue;
+                    }
+
+                    // get overlapping genes for the record
+                    SAMRecordProcessor recordProcessor = new SAMRecordProcessor(record, annotation);
+                    ArrayList<String> overlappedGenes = recordProcessor.getOverlapGenes(strandSpecific);
+
+                    if (record.getReadPairedFlag() && record.getFirstOfPairFlag()) { // if this is the first segment of a pair, denote its overlapping genes, and the record as well if needed
                         String id = record.getReadName();
-                        id = id.replaceAll("[12]$", "");
+                        Pattern pattern=Pattern.compile("\\W[1,2]$");
+                        Matcher matcher=pattern.matcher(id);
+                        if(matcher.find())
+                            id = id.replaceAll("[12]$", "");
+                        id = id + " " + record.getMateReferenceName() + ":" + Integer.toString(record.getMateAlignmentStart());
+
+                        if (!overlappedGenes.isEmpty()) {
+                            HashSet<String> genes = new HashSet<>();
+                            genes.addAll(overlappedGenes);
+                            overlapGenesForPair.put(id, genes);
+                        }
+                        if (markAmbiguous) {
+                            firstRecordOfPair.put(id, record);
+                        }
+                        continue;
+
+                    } else if (record.getReadPairedFlag() && record.getSecondOfPairFlag()) { // if this is the second segment of a pair, combine the overlapping genes of the two segments
+                        String id = record.getReadName();
+                        Pattern pattern=Pattern.compile("\\W[1,2]$");
+                        Matcher matcher=pattern.matcher(id);
+                        if(matcher.find())
+                            id = id.replaceAll("[12]$", "");
                         id = id + " " + record.getReferenceName() + ":" + Integer.toString(record.getAlignmentStart());
-                        if (overlappedGenes.size() > 1) {
-                            outputSam.addAlignment(firstRecordOfPair.get(id));
+
+                        if (overlapGenesForPair.containsKey(id)) {
+                            HashSet<String> genes = overlapGenesForPair.get(id);
+                            genes.addAll(overlappedGenes);
+                            overlappedGenes.clear();
+                            overlappedGenes.addAll(genes);
+
+                            overlapGenesForPair.remove(id);
+                        }
+                    }
+
+                    //System.err.println(record.getReadName()+"\t"+overlappedGenes);
+
+                    // add count to the genes
+                    double add = 1;
+                    if (considerNHAttrib && record.getIntegerAttribute("NH") != null) {
+                        add = add / record.getIntegerAttribute("NH");
+                    }
+                    if (overlappedGenes.isEmpty()) {
+                        numNoFeature++;
+                    } else if (overlappedGenes.size() == 1 || modeForMultiGenesOverlap == 1) { // Mode 1: For the multi-genes hits, equally assign 1/n to each gene
+                        add /= overlappedGenes.size();
+                        for (String gene : overlappedGenes) {
+                            counts.put(gene, counts.get(gene) + add);
+                            if (verbose){
+                                System.err.println(record.getReadName() + "\t" + gene);
+                            }
+                        }
+                    } else if (overlappedGenes.size() > 1 && modeForMultiGenesOverlap == 2) { // Mode 2: For the multi-genes hits, randomly assign to one of the gene
+                        java.util.Random random = new java.util.Random();
+                        int selected = java.lang.Math.abs(random.nextInt()) % overlappedGenes.size();
+                        counts.put(overlappedGenes.get(selected), counts.get(overlappedGenes.get(selected)) + add);
+                    } else if (modeForMultiGenesOverlap == 0) { // Mode 0: See the multi-genes hits as ambiguous hits
+                        numAmbiguous++;
+                    }
+
+                    if (markAmbiguous) { // Mode 3: For the multi-genes hits, save them for the iterative counting
+                        if (record.getReadPairedFlag() && record.getSecondOfPairFlag()) {
+                            String id = record.getReadName();
+                            id = id.replaceAll("[12]$", "");
+                            id = id + " " + record.getReferenceName() + ":" + Integer.toString(record.getAlignmentStart());
+                            if (overlappedGenes.size() > 1) {
+                                outputSam.addAlignment(firstRecordOfPair.get(id));
+                                outputSam.addAlignment(record);
+                            }
+                            firstRecordOfPair.remove(id);
+                        } else if (!record.getReadPairedFlag() && overlappedGenes.size() > 1) {
                             outputSam.addAlignment(record);
                         }
-                        firstRecordOfPair.remove(id);
-                    } else if (!record.getReadPairedFlag() && overlappedGenes.size() > 1) {
-                        outputSam.addAlignment(record);
                     }
+                } catch (SAMFormatException e){
+                    System.err.println("Warning: " + e);
                 }
             }
             iterator.close();

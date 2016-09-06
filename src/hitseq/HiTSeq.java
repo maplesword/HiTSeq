@@ -478,8 +478,7 @@ public class HiTSeq {
             });
             sortedEvents.addAll(eventCount.keySet());
 
-            for (Iterator<ASEvent> it = sortedEvents.iterator(); it.hasNext();) {
-                ASEvent event = it.next();
+            for (ASEvent event : sortedEvents) {
                 String info = event.toString();
                 String readNum = "";
                 for (int i = firstSAMIndex; i < args.length; i++) {
@@ -512,8 +511,7 @@ public class HiTSeq {
             System.out.println("TOTAL_READS\tNA\tNA\tNA\t" + totalReads);
 
             sortedJunctions.addAll(juncCount.keySet());
-            for (Iterator<Junction> it = sortedJunctions.iterator(); it.hasNext();) {
-                Junction junc = it.next();
+            for (Junction junc : sortedJunctions) {
                 String readNum = "";
                 for (int i = firstSAMIndex; i < args.length; i++) {
                     readNum = readNum + "\t" + String.valueOf(juncCount.get(junc).get(args[i]).intValue());
@@ -542,7 +540,9 @@ public class HiTSeq {
                     + "         -m [int]  The mode to deal with multi-gene hits (default: mode 0 - abandon ambiguous reads; options: 0/1)\n"
                     + "         -a [str]  The file type of annotation file (default: struc format; options: struc/gtf/gff3/bed)\n"
                     + "         -i [int]  The number of intervals to check the 3'-bias\n"
-                    + "         -e [int]  Whether to use mean or median read proportion (default: 0 - mean; 1 - median)\n");
+                    + "         -e [int]  Whether to use mean or median read proportion (default: 0 - mean; 1 - median)\n"
+                    + "         -l [int]  Set the total exon length cutoff for genes (default: 0)\n"
+                    + "         -r [int]  Set the read coverage (#read/nt) cutoff for genes (default: 0)\n");
             System.exit(0);
         }
 
@@ -558,6 +558,8 @@ public class HiTSeq {
         String annotFormat = parameters.getAnnotFormat();
         int numIntervals = parameters.getNumIntervals();
         boolean useMedian = parameters.useMedian();
+        int lengthCutoff = parameters.getLengthCutoff();
+        double countCutoff = parameters.getCountCutoff();
 
         int firstSAMIndex = parameters.getFirstSAMIdx();
         
@@ -574,7 +576,7 @@ public class HiTSeq {
             annotation.resetPointer();
             ReadCounter counter = new ReadCounter(mappingFile, annotation, strandSpecific, modeForMultiGenesOverlap, true, numIntervals);
             counter.estimateBias(considerNH, onlyUnique, readCollapse);
-            double[] counts = counter.getAverageProportionReadsEachInterval(useMedian);
+            double[] counts = counter.getAverageProportionReadsEachInterval(useMedian, lengthCutoff, countCutoff);
             
             // output
             String values = "";
@@ -658,6 +660,8 @@ public class HiTSeq {
         private boolean verbose=false;
         private int numIntervals;
         private boolean useMedian = false;
+        private int lengthCutoff;
+        private double countCutoff;
         
         ParameterSet(String cmd){
             firstSAMIndex=1;
@@ -689,6 +693,8 @@ public class HiTSeq {
                 modeForMultiGenesOverlap = 0;
                 annotFormat = "struc";
                 numIntervals = 100;
+                lengthCutoff = 0;
+                countCutoff = 0;
             }
         }
         
@@ -742,6 +748,14 @@ public class HiTSeq {
         
         boolean useMedian(){
             return useMedian;
+        }
+        
+        int getLengthCutoff(){
+            return lengthCutoff;
+        }
+        
+        double getCountCutoff(){
+            return countCutoff;
         }
         
         void readCommandLineArgs(String[] args){
@@ -882,6 +896,34 @@ public class HiTSeq {
                                 } catch(java.lang.NumberFormatException e){
                                    System.err.println("\nParameter error. The mode should be int >= 2.\n");
                                    System.exit(0);
+                                }
+                                break;
+                            case "l":
+                                idx=optionsString.indexOf("l");
+                                if (idx < optionsString.length() - 1) {
+                                    System.err.println("\nParameter error. The average mode needs to be given.\n");
+                                    System.exit(0);
+                                }
+                                this.firstSAMIndex++;
+                                try {
+                                    this.lengthCutoff = Integer.parseInt(args[this.firstSAMIndex]);
+                                } catch (java.lang.NumberFormatException e) {
+                                    System.err.println("\nParameter error. The average mode should be int.\n");
+                                    System.exit(0);
+                                }
+                                break;
+                            case "r":
+                                idx=optionsString.indexOf("r");
+                                if (idx < optionsString.length() - 1) {
+                                    System.err.println("\nParameter error. The average mode needs to be given.\n");
+                                    System.exit(0);
+                                }
+                                this.firstSAMIndex++;
+                                try {
+                                    this.countCutoff = Double.parseDouble(args[this.firstSAMIndex]);
+                                } catch (java.lang.NumberFormatException e) {
+                                    System.err.println("\nParameter error. The average mode should be int.\n");
+                                    System.exit(0);
                                 }
                                 break;
                             default:
