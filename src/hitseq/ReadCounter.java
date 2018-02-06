@@ -273,61 +273,65 @@ public class ReadCounter {
             int alignmentStartLast = -1;
 
             while(iterator.hasNext()){
-                SAMRecord record=iterator.next();
-                int thisReadLength = record.getReadLength();
-                if(thisReadLength > readLength)
-                    readLength = thisReadLength;
-                if (record.getReadUnmappedFlag()) // skip if this read is unmapped
-                    continue;
-                if (onlyUnique && record.getIntegerAttribute("NH") != null && (! record.getIntegerAttribute("NH").equals(1))) // skip if this read is required to be uniquely mapped but not
-                    continue;
-
-                List<AlignmentBlock> hitsList = record.getAlignmentBlocks();
-                ArrayList<AlignmentBlock> hits = new ArrayList<>();
-                for (AlignmentBlock block : hitsList) {
-                    hits.add(block);
-                }
-                int alignmentStart = hits.get(0).getReferenceStart();
-
-                String chrom = record.getReferenceName();
-                String strand = record.getReadNegativeStrandFlag() ? "-" : "+";
-                String cigar = record.getCigarString();
-
-                // remove PCR artifact if necessary
-                if (readCollapse) {
-                    if (chromLast.equals(chrom) && strandLast.equals(strand) && cigarLast.equals(cigar) && alignmentStartLast == alignmentStart) {
+                try{
+                    SAMRecord record=iterator.next();
+                    int thisReadLength = record.getReadLength();
+                    if(thisReadLength > readLength)
+                        readLength = thisReadLength;
+                    if (record.getReadUnmappedFlag()) // skip if this read is unmapped
                         continue;
-                    } else {
-                        chromLast = chrom;
-                        strandLast = strand;
-                        cigarLast = cigar;
-                        alignmentStartLast = alignmentStart;
-                    }
-                }
+                    if (onlyUnique && record.getIntegerAttribute("NH") != null && (! record.getIntegerAttribute("NH").equals(1))) // skip if this read is required to be uniquely mapped but not
+                        continue;
 
-                // skip if no gene exists in this chromosome in annotation
-                if (!annotation.chromIsExisted(chrom)) {
-                    continue;
-                }
-
-                // get overlapping genes for the record
-                SAMRecordProcessor recordProcessor = new SAMRecordProcessor(record, annotation);
-                ArrayList<String> overlappedGenes = recordProcessor.getOverlapGenes(strandSpecific);
-                
-                double add = 1;
-                if (considerNHAttrib && record.getIntegerAttribute("NH") != null) {
-                    add = add / record.getIntegerAttribute("NH");
-                }
-                if (overlappedGenes.size() == 1 || modeForMultiGenesOverlap == 1) { // Mode 1: For the multi-genes hits, equally assign 1/n to each gene
-                    add /= overlappedGenes.size();
-                    for (String gene : overlappedGenes) {
-                        double[] quantiles = recordProcessor.getGeneBodyQuantile(annotation.getGene(gene), strandSpecific);
-                        int[] idx = new int[]{ (int)Math.floor(quantiles[0]/(1.0/numIntervals)), (int)Math.ceil(quantiles[1]/(1.0/numIntervals))};
-                        //System.err.println(record.getReadName()+"\t"+gene+"\t"+String.valueOf(quantiles[0])+"\t"+String.valueOf(quantiles[1]));
-                        for(int i=idx[0]; i<idx[1]; i++)
-                            numReadsInIntervals.get(gene)[i] += add;
-                        counts.put(gene, counts.get(gene) + add);
+                    List<AlignmentBlock> hitsList = record.getAlignmentBlocks();
+                    ArrayList<AlignmentBlock> hits = new ArrayList<>();
+                    for (AlignmentBlock block : hitsList) {
+                        hits.add(block);
                     }
+                    int alignmentStart = hits.get(0).getReferenceStart();
+
+                    String chrom = record.getReferenceName();
+                    String strand = record.getReadNegativeStrandFlag() ? "-" : "+";
+                    String cigar = record.getCigarString();
+
+                    // remove PCR artifact if necessary
+                    if (readCollapse) {
+                        if (chromLast.equals(chrom) && strandLast.equals(strand) && cigarLast.equals(cigar) && alignmentStartLast == alignmentStart) {
+                            continue;
+                        } else {
+                            chromLast = chrom;
+                            strandLast = strand;
+                            cigarLast = cigar;
+                            alignmentStartLast = alignmentStart;
+                        }
+                    }
+
+                    // skip if no gene exists in this chromosome in annotation
+                    if (!annotation.chromIsExisted(chrom)) {
+                        continue;
+                    }
+
+                    // get overlapping genes for the record
+                    SAMRecordProcessor recordProcessor = new SAMRecordProcessor(record, annotation);
+                    ArrayList<String> overlappedGenes = recordProcessor.getOverlapGenes(strandSpecific);
+
+                    double add = 1;
+                    if (considerNHAttrib && record.getIntegerAttribute("NH") != null) {
+                        add = add / record.getIntegerAttribute("NH");
+                    }
+                    if (overlappedGenes.size() == 1 || modeForMultiGenesOverlap == 1) { // Mode 1: For the multi-genes hits, equally assign 1/n to each gene
+                        add /= overlappedGenes.size();
+                        for (String gene : overlappedGenes) {
+                            double[] quantiles = recordProcessor.getGeneBodyQuantile(annotation.getGene(gene), strandSpecific);
+                            int[] idx = new int[]{ (int)Math.floor(quantiles[0]/(1.0/numIntervals)), (int)Math.ceil(quantiles[1]/(1.0/numIntervals))};
+                            //System.err.println(record.getReadName()+"\t"+gene+"\t"+String.valueOf(quantiles[0])+"\t"+String.valueOf(quantiles[1]));
+                            for(int i=idx[0]; i<idx[1]; i++)
+                                numReadsInIntervals.get(gene)[i] += add;
+                            counts.put(gene, counts.get(gene) + add);
+                        }
+                    }
+                } catch (SAMFormatException e){
+                    System.err.println("Warning: " + e);
                 }
             }
         } catch (Exception e) {

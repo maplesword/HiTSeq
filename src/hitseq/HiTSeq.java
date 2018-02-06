@@ -155,7 +155,7 @@ public class HiTSeq {
     }
     
     /**
-     * The program to run "gtf2struc" command
+     * The program to run "tostruc" command
      * @param args the command line arguments
      */
     private static void transform2Struc(String[] args){
@@ -167,7 +167,7 @@ public class HiTSeq {
         String annotationType=parameters.getAnnotFormat();
         String pathAnnotation = args[parameters.getFirstSAMIdx()];
         Annotation annotation = new Annotation(new File(pathAnnotation), annotationType);
-        annotation.outputInStruc();
+        annotation.outputInStruc(parameters.getOnlyExclusive(), parameters.strandSpecific!=0);
     }
     
     private static void transform4Junction(String[] args){
@@ -662,6 +662,7 @@ public class HiTSeq {
         private boolean useMedian = false;
         private int lengthCutoff;
         private double countCutoff;
+        private boolean onlyExclusive;
         
         ParameterSet(String cmd){
             firstSAMIndex=1;
@@ -681,8 +682,10 @@ public class HiTSeq {
                 readCollapse = false;
                 outputForEvents = false;
             } else if(cmd.equalsIgnoreCase("tostruc")){
+                strandSpecific = 0;
                 annotFormat="gtf";
-            } else if(cmd.equalsIgnoreCase("corrent")){
+            } else if(cmd.equalsIgnoreCase("correct")){
+                onlyExclusive = false;
                 strandSpecific = 0;
                 annotFormat = "struc";
             } else if(cmd.equalsIgnoreCase("bias")){
@@ -756,6 +759,10 @@ public class HiTSeq {
         
         double getCountCutoff(){
             return countCutoff;
+        }
+        
+        boolean getOnlyExclusive(){
+            return onlyExclusive;
         }
         
         void readCommandLineArgs(String[] args){
@@ -870,7 +877,10 @@ public class HiTSeq {
                                         System.err.println("\nParameter error. The average mode should be int 0/1.\n");
                                         System.exit(0);
                                     }
-                                } else{
+                                } else if(cmd.equalsIgnoreCase("tostruc")){
+                                    this.onlyExclusive = true;
+                                }    
+                                else{
                                     outputForEvents=true;
                                 }
                                 break;

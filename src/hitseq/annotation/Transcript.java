@@ -18,8 +18,9 @@ public class Transcript {
     private int end;
     private ArrayList<Exon> exons;
     private int length;
+    private String type;
     
-    public Transcript(String id, String chrom, String strand, int start, int end){
+    public Transcript(String id, String chrom, String strand, int start, int end, String type){
         this.id=id;
         this.chrom=chrom;
         this.strand=strand;
@@ -27,6 +28,15 @@ public class Transcript {
         this.end=end;
         this.exons=new ArrayList<>();
         this.length=0;
+        this.type = type;
+    }
+    
+    public Transcript(String id, String chrom, String strand, int start, int end){
+        this(id, chrom, strand, start, end, "others");
+    }
+    
+    public Transcript(String id, String chrom, String strand, String type){
+        this(id, chrom, strand, -1, -1, type);
     }
     
     public Transcript(String id, String chrom, String strand){
@@ -129,6 +139,10 @@ public class Transcript {
         return(end);
     }
     
+    public String getType(){
+        return(type);
+    }
+    
     public Exon getExon(int idx){
         if(idx<0 || idx>exons.size()-1)
             return(null);
@@ -216,6 +230,53 @@ public class Transcript {
         }
         
         return(answer);
+    }
+    
+    public ArrayList<Exon> exclusiveRegions(Transcript transcript, boolean considerStrand){
+        ArrayList<Exon> answer = new ArrayList<>();
+        if(considerStrand && ! strand.equals(transcript.getStrand())){
+            for(Exon exon : exons){
+                Exon thisExon = new Exon(exon.getID(), exon.getChrom(), exon.getStrand(), exon.getStart(), exon.getEnd());
+                answer.add(thisExon);
+            }
+            return answer;
+        }
+        
+        ArrayList<Exon> thisExons = (ArrayList<Exon>)exons.clone();
+        ArrayList<Exon> thatExons = transcript.getExons();
+        int idx1=0, idx2=0;
+        while(idx1<thisExons.size() && idx2<thatExons.size()){
+            if(thisExons.get(idx1).getEnd() < thatExons.get(idx2).getStart()){
+                answer.add(new Exon(thisExons.get(idx1).getChrom(), thisExons.get(idx1).getStrand(), thisExons.get(idx1).getStart(), thisExons.get(idx1).getEnd()));
+                idx1++;
+            } else if(thatExons.get(idx2).getEnd() < thisExons.get(idx1).getStart())
+                idx2++;
+            else if(thisExons.get(idx1).getStart() < thatExons.get(idx2).getStart()){
+                answer.add(new Exon(thisExons.get(idx1).getChrom(), thisExons.get(idx1).getStrand(), thisExons.get(idx1).getStart(), thatExons.get(idx2).getStart()-1));
+                if(thisExons.get(idx1).getEnd() < thatExons.get(idx2).getEnd()){
+                    idx1++;
+                } else if(thisExons.get(idx1).getEnd() == thatExons.get(idx2).getEnd()){
+                    idx1++;
+                    idx2++;
+                } else{
+                    thisExons.set(idx1, new Exon(thisExons.get(idx1).getChrom(), thisExons.get(idx1).getStrand(), thatExons.get(idx2).getEnd()+1, thisExons.get(idx1).getEnd()));
+                    idx2++;
+                }
+            }
+            else if(thatExons.get(idx2).getStart() <= thisExons.get(idx1).getStart()){
+                if(thisExons.get(idx1).getEnd() <= thatExons.get(idx2).getEnd())
+                    idx1++;
+                else{
+                    thisExons.set(idx1, new Exon(thisExons.get(idx1).getChrom(), thisExons.get(idx1).getStrand(), thatExons.get(idx2).getEnd()+1, thisExons.get(idx1).getEnd()));
+                    idx2++;
+                }
+            }
+        }
+        if(idx1 < thisExons.size())
+            for(int i = idx1; i < thisExons.size(); i++)
+                answer.add(thisExons.get(i));
+        
+        return answer;
     }
     
     public double getQuantileAtPosition(String chrom, String strand, int pos){

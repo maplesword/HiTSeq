@@ -8,7 +8,7 @@ package hitseq.annotation;
  *
  * @author hezhisong
  */
-public class Exon {
+public class Exon{
     private String id;
     private String chrom;
     private String strand;

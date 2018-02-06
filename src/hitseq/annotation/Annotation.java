@@ -24,6 +24,9 @@ public class Annotation {
     private HashMap<String, Integer> pointerOfChrom;
     private HashMap<Gene, Integer> pointerOfGene;
     
+    private boolean estimatedAmbiguous;
+    private boolean estimatedExclusive;
+    
     public Annotation(){
         reset();
     }
@@ -50,6 +53,8 @@ public class Annotation {
         genesInChrom=new HashMap<>();
         allGenes=new HashMap<>();
         lengthOfGene=new HashMap<>();
+        estimatedAmbiguous = false;
+        estimatedExclusive = false;
     }
     
     /**
@@ -170,7 +175,12 @@ public class Annotation {
                                 if(allGenes.containsKey(geneId))
                                     gene=allGenes.get(geneId);
                                 else{
-                                    gene=new Gene(geneId, elements[0], elements[6]);
+                                    if(elements[8].matches("gene_type \"[\\w_]+\";")){
+                                        String geneType = Pattern.compile("gene_type \"([\\w_]+)\";").matcher(elements[8]).group(1);
+                                        gene = new Gene(geneId, elements[0], elements[6], geneType);
+                                    } else{
+                                        gene=new Gene(geneId, elements[0], elements[6]);
+                                    }
                                     genesInChrom.get(elements[0]).add(geneId);
                                     allGenes.put(geneId, gene);
                                     pointerOfGene.put(gene, 0);
@@ -181,7 +191,12 @@ public class Annotation {
                                 if(gene.containTranscript(transcriptId))
                                     transcript=gene.getTranscript(transcriptId);
                                 else{
-                                    transcript=new Transcript(transcriptId, elements[0], elements[6]);
+                                    if(elements[8].matches("transcript_type \"[\\w_]+\";")){
+                                        String transcriptType = Pattern.compile("transcript_type \"([\\w_]+)\";").matcher(elements[8]).group(1);
+                                        transcript = new Transcript(transcriptId, elements[0], elements[6], transcriptType);
+                                    } else{
+                                        transcript=new Transcript(transcriptId, elements[0], elements[6]);
+                                    }
                                     gene.addTranscript(transcript);
                                 }
                                 
@@ -315,6 +330,9 @@ public class Annotation {
                     i=j-1;
                 }
             }
+            
+            estimatedAmbiguous = false;
+            estimatedExclusive = false;
         }
         catch(java.io.IOException e){
             System.err.println("IO error: cannot open file"+file.getPath());
@@ -324,18 +342,28 @@ public class Annotation {
     /**
      * FunName: outputInStruc.
      * Description: Output the annotation set to STOUT in struc format.
+     * @param onlyExclusive
+     * @param considerStrand
      */
-    public void outputInStruc(){
+    public void outputInStruc(boolean onlyExclusive, boolean considerStrand){
+        if(onlyExclusive & ! estimatedExclusive)
+            generateUnambiguousGeneRegions();
+        
         // Fields: geneID, chrom, strand, exonLength, exonStructure
         for(String chr : genesInChrom.keySet()){
             for(String geneID : genesInChrom.get(chr)){
                 Gene gene=allGenes.get(geneID);
                 String strand=gene.getStrand();
                 strand=strand.equals("+") ? "1" : "-1";
-                Integer length=lengthOfGene.get(gene);
-                //System.err.println(gene+"\t"+length);
                 
+                //System.err.println(gene+"\t"+length);
+                Integer length=lengthOfGene.get(gene);
                 Transcript nonredundant=gene.getNonredundantTranscript();
+                if(onlyExclusive){
+                    nonredundant = considerStrand ? gene.getExclusiveRegions() : gene.getExclusiveRegionsIgnoringStrand();
+                    length = nonredundant.getTotalExonLength();
+                }
+                
                 String struc="";
                 for(int i=0; i<nonredundant.getExonNumber(); i++){
                     if(! struc.isEmpty())
@@ -350,12 +378,21 @@ public class Annotation {
         }
     }
     
+    public void outputInStruc(){
+        outputInStruc(false, false);
+    }
+    
     /**
      * FunName: outputInStruc.
      * Description: Output the annotation set to the given file in struc format.
      * @param file The File object for output.
+     * @param onlyExclusive
+     * @param considerStrand
      */
-    public void outputInStruc(File file){
+    public void outputInStruc(File file, boolean onlyExclusive, boolean considerStrand){
+        if(onlyExclusive & ! estimatedExclusive)
+            generateUnambiguousGeneRegions();
+        
         try{
             RandomAccessFile fileOut=new RandomAccessFile(file,"w");
             for(String chr : genesInChrom.keySet()){
@@ -367,6 +404,9 @@ public class Annotation {
                     //System.err.println(gene+"\t"+length);
 
                     Transcript nonredundant=gene.getNonredundantTranscript();
+                    if(onlyExclusive)
+                        nonredundant = considerStrand ? gene.getExclusiveRegions() : gene.getExclusiveRegionsIgnoringStrand();
+                    
                     String struc="";
                     for(int i=0; i<nonredundant.getExonNumber(); i++){
                         if(! struc.isEmpty())
@@ -382,6 +422,10 @@ public class Annotation {
         } catch(java.io.IOException e){
             System.err.println("IO error: cannot open file"+file.getPath());
         }
+    }
+    
+    public void outputInStruc(File file){
+        outputInStruc(file, false, false);
     }
     
     /**
@@ -563,6 +607,7 @@ public class Annotation {
                 thisGene.getAmbiguousRegionsIgnoringStrand().mergeExons();
             }
         }
+        estimatedAmbiguous = true;
     }
     
     /**
@@ -572,6 +617,32 @@ public class Annotation {
      */
     public void estimateAmbiguousGeneRegions(){
         estimateAmbiguousGeneRegions(false);
+    }
+    
+    public void generateUnambiguousGeneRegions(){
+        if(! estimatedAmbiguous)
+            estimateAmbiguousGeneRegions();
+        for(Gene gene : allGenes.values()){
+            gene.getExclusiveRegions().addExons(gene.getNonredundantTranscript().exclusiveRegions(gene.getAmbiguousRegions(), true));
+            gene.getExclusiveRegionsIgnoringStrand().addExons(gene.getNonredundantTranscript().exclusiveRegions(gene.getAmbiguousRegionsIgnoringStrand(), true));
+        }
+        estimatedExclusive = true;
+    }
+    
+    public HashMap<String, HashMap<Integer, HashSet<String>>> getStructuredTSS(){
+        HashMap<String, HashMap<Integer, HashSet<String>>> res = new HashMap<>();
+        for(String chrom : genesInChrom.keySet()){
+            res.put(chrom, new HashMap<Integer, HashSet<String>>());
+            for(String gene : genesInChrom.get(chrom)){
+                HashSet<Integer> geneTSS = allGenes.get(gene).getTSS();
+                for(Integer tss : geneTSS){
+                    if(! res.get(chrom).containsKey(tss))
+                        res.get(chrom).put(tss, new HashSet<String>());
+                    res.get(chrom).get(tss).add(gene);
+                }
+            }
+        }
+        return(res);
     }
     
     /**

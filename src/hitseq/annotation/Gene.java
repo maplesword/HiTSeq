@@ -18,23 +18,30 @@ public class Gene {
     private String strand;
     private int start;
     private int end;
+    private String type;
+    
     private HashMap<String, Transcript> transcripts;
     private Transcript nonredundantTranscript;
     private ArrayList<Exon> segments;
     private HashSet<Junction> junctions;
+    private HashSet<Integer> transcriptTSS;
     
     private Transcript ambiguousRegions;
     private Transcript ambiguousRegionsIgnoreStrand;
     
+    private Transcript exclusiveRegions;
+    private Transcript exclusiveRegionsIgnoreStrand;
+    
     /**
-     * Generate a new Gene object with given gene ID, chromosome, strand, gene start and gene end coordinates.
+     * Generate a new Gene object with given gene ID, chromosome, strand, gene start, gene end coordinates and gene type.
      * @param id Gene ID.
      * @param chrom Chromosome.
      * @param strand Strand.
      * @param start Gene start coordinates. Count from 1.
      * @param end Gene end coordinates. Count from 1.
+     * @param type Gene type.
      */
-    public Gene(String id, String chrom, String strand, int start, int end){
+    public Gene(String id, String chrom, String strand, int start, int end, String type){
         this.id=id;
         this.chrom=chrom;
         this.strand=strand;
@@ -44,18 +51,45 @@ public class Gene {
         this.nonredundantTranscript=new Transcript("Structure", chrom, strand);
         this.segments=new ArrayList<>();
         this.junctions=new HashSet<>();
+        this.transcriptTSS=new HashSet<>();
+        this.type=type;
         this.ambiguousRegions=new Transcript("Ambiguous", chrom, strand);
         this.ambiguousRegionsIgnoreStrand=new Transcript("Ambiguous", chrom, strand);
+        this.exclusiveRegions=new Transcript("Exclusive", chrom, strand);
+        this.exclusiveRegionsIgnoreStrand=new Transcript("Exclusive", chrom, strand);
     }
     
     /**
-     * Generate a new Gene object without gene start and end coordinates.
+     * Generate a new Gene object with only given gene ID, chromosome, strand, gene start and gene end coordinates.
+     * @param id Gene ID.
+     * @param chrom Chromosome.
+     * @param strand Strand.
+     * @param start Gene start coordinates. Count from 1.
+     * @param end Gene end coordinates. Count from 1.
+     */
+    public Gene(String id, String chrom, String strand, int start, int end){
+        this(id, chrom, strand, start, end, "others");
+    }
+    
+    /**
+     * Generate a new Gene object without gene start, end coordinates as well as gene type.
      * @param id Gene ID.
      * @param chrom Chromosome.
      * @param strand Strand.
      */
     public Gene(String id, String chrom, String strand){
         this(id, chrom, strand, -1, -1);
+    }
+    
+    /**
+     * Generate a new Gene object without gene start and end coordinates
+     * @param id Gene ID.
+     * @param chrom Chromosome.
+     * @param strand Strand.
+     * @param type Gene type.
+     */
+    public Gene(String id, String chrom, String strand, String type){
+        this(id, chrom, strand, -1, -1, type);
     }
     
     /**
@@ -68,6 +102,13 @@ public class Gene {
         transcripts.put(transcriptID, newTranscript);
         if(start==-1 || newTranscript.getStart()<start)
             start=newTranscript.getStart();
+        if(end==-1 || newTranscript.getEnd()>end)
+            end = newTranscript.getEnd();
+        
+        if(strand.equals("+"))
+            transcriptTSS.add(newTranscript.getStart());
+        else
+            transcriptTSS.add(newTranscript.getEnd());
     }
     
     /**
@@ -82,6 +123,10 @@ public class Gene {
                 nonredundantTranscript.addExon(transcripts.get(transcriptID).getExon(i));
         nonredundantTranscript.mergeExons();
         refreshStartAndEnd();
+        if(strand.equals("+"))
+            transcriptTSS.add(nonredundantTranscript.getStart());
+        else
+            transcriptTSS.add(nonredundantTranscript.getEnd());
     }
     
     /**
@@ -129,6 +174,10 @@ public class Gene {
         return(end);
     }
     
+    public String getType(){
+        return(type);
+    }
+    
     /**
      * FunName: getTranscript.
      * Description: Given the transcript ID, return the corresponding Transcript object if the transcript exists.
@@ -154,6 +203,14 @@ public class Gene {
         return(ambiguousRegionsIgnoreStrand);
     }
     
+    public Transcript getExclusiveRegions(){
+        return(exclusiveRegions);
+    }
+    
+    public Transcript getExclusiveRegionsIgnoringStrand(){
+        return(exclusiveRegionsIgnoreStrand);
+    }
+    
     public HashSet<Junction> getAllJunctions(){
         return((HashSet<Junction>)junctions.clone());
     }
@@ -170,6 +227,10 @@ public class Gene {
     
     public ArrayList<Exon> getSegments(){
         return(segments);
+    }
+    
+    public HashSet<Integer> getTSS(){
+        return(transcriptTSS);
     }
     
     public int getTotalExonLength(){
