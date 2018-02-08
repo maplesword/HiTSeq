@@ -5,11 +5,11 @@
 package hitseq;
 
 import hitseq.annotation.*;
-import htsjdk.samtools.SAMFileHeader;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.HashSet;
 
 /**
  *
@@ -23,18 +23,19 @@ public class HiTSeq {
         System.err.println("\nThis is the help page of HiTSeq.\n"
                     + "Usage: java -jar HiTSeq.jar <command> <...>\n"
                     + "   Or: HiTSeq.sh <command> <...>\n\n"
-                    + "Commands:  help       This help page\n"
-                    + "           info       Output information of mapping, including total number of reads, mapped reads, etc\n"
-                    + "           count      Given annotation in struc/gtf/bed format, output table of read count of each gene for the input alignments\n"
-                    + "           rpkm       Given annotation in struc/gtf/bed format, output table of RPKM of each gene for the input alignment\n"
-                    + "           bias       Given annotation in struc/gtf/bed format, estimate the 3'-bias by summarizing all the genes\n"
-                    + "           uniq       Extract uniquely mapped reads from the input alignment\n"
-                    + "           correct    Correct the proper-paired flag for paired-ended RNA-seq data based on annotation\n"
-                    + "           tostruc    Transform annotation into struc format\n"
-                    + "           tojuncs    Combine and transform junction list(s) into a junction list in 'juncs' format\n"
-                    + "           toevents   Combine the junction list(s) and generate alternative splicing events\n"
-                    + "           countjunc  Given junction list in junc/bed/gtf format, or event list in events format, output table of read count of each junction for the input alignments\n"
-                    + "           gui        Open HiTSeq GUI.\n");
+                    + "Commands:  help         This help page\n"
+                    + "           info         Output information of mapping, including total number of reads, mapped reads, etc\n"
+                    + "           count        Given annotation in struc/gtf/bed format, output table of read count of each gene for the input alignments\n"
+                    + "           rpkm         Given annotation in struc/gtf/bed format, output table of RPKM of each gene for the input alignment\n"
+                    + "           bias         Given annotation in struc/gtf/bed format, estimate the 3'-bias by summarizing all the genes\n"
+                    + "           uniq         Extract uniquely mapped reads from the input alignment\n"
+                    + "           correct      Correct the proper-paired flag for paired-ended RNA-seq data based on annotation\n"
+                    + "           tostruc      Transform annotation into struc format\n"
+                    + "           tojuncs      Combine and transform junction list(s) into a junction list in 'juncs' format\n"
+                    + "           toevents     Combine the junction list(s) and generate alternative splicing events\n"
+                    + "           countjunc    Given junction list in junc/bed/gtf format, or event list in events format, output table of read count of each junction for the input alignments\n"
+                    + "           demultiplex  Given sites with varied bases in different species/groups, demultiplex the pooled nuclei transcriptome data\n"
+                    + "           gui          Open HiTSeq GUI.\n");
     }
     
     /**
@@ -42,28 +43,37 @@ public class HiTSeq {
      * @param args the command line arguments
      */
     private static void runTest(String[] args){
-        // read annotation
-        String pathAnnotation = args[1];
-        Annotation annotation = new Annotation(new File(pathAnnotation), "struc");
-
-        String pathMapping = args[2];
+        // read divergent site list
+        String pathSites = args[1];
+        DivergentSiteSet sites = new DivergentSiteSet(new File(pathSites));
+        
+        // read barcodes
+        String pathBarcode = args[2];
+        HashSet<String> barcodes;
+        if(pathBarcode.equals("-"))
+            barcodes = null;
+        else{
+            barcodes = new HashSet<>();
+            try(java.io.RandomAccessFile rd = new java.io.RandomAccessFile(new File(pathBarcode), "r")){
+                String line;
+                while((line = rd.readLine()) != null)
+                    barcodes.add(line);
+            } catch(java.io.IOException e){
+                System.err.println("IO error. Cannot open the barcode file: " + pathBarcode);
+                System.err.println(e);
+                System.exit(1);
+            }
+        }
+        
+        String pathMapping = args[3];
         File mappingFile = new File(pathMapping);
 
-        // Read counting
-        annotation.resetPointer();
-        ReadCounter counter = new ReadCounter(mappingFile, annotation, 0, 0, true);
-        counter.estimateBias(false, true, false);
-        HashMap<String, double[]> counts = counter.getNumReadsEachInterval();
-        
-        // output
-        for(String gene : counts.keySet()){
-            String values = "";
-            for(double count : counts.get(gene))
-                values = values + "\t" + String.valueOf(count);
-            System.out.println(gene + "\t" + counts.get(gene).length + "\t" + values);
-        }
+        // demultiplex
+        Demultiplexor dm = new Demultiplexor(mappingFile, sites, barcodes, false, true);
+        HashMap<String, double[]> results = dm.demultiplex(false);
+        System.out.println(Demultiplexor.output(results, new String[]{"human", "chimpanzee", "macaque"}));
     }
-    
+        
     /**
      * Run the program of "info" command
      * @param args the command line arguments
@@ -588,7 +598,62 @@ public class HiTSeq {
         }
     }
     
-    
+    private static void runDemultiplex(String[] args){
+        String cmd=args[0];
+        if (args.length == 1 || args[1].equals("-h")) {
+            System.err.println("\nThis is the help of '" + cmd.toLowerCase() + "' command of HiTSeq.");
+            System.err.println("Usage: java -jar HiTSeq.jar " + cmd.toLowerCase() + " [options] <divergent_site_list> <barcode_list> <in.bam>\n"
+                    + "   Or: HiTSeq.sh " + cmd.toLowerCase() + " [options] <divergent_site_list> <barcode_list> <in.bam>");
+            System.err.println("\n"
+                    + "Options: -h        This help page\n"
+                    + "         -u        Only consider reads with NH:i:1, i.e. uniquely mapped reads\n"
+                    + "         -f        Do read filtering\n"
+                    + "         -x        Only count reads with specific base of one species\n");
+            System.exit(0);
+        }
+        
+        // read the parameters
+        ParameterSet parameters = new ParameterSet(cmd);
+        parameters.readCommandLineArgs(args);
+        
+        boolean onlyUnique = parameters.getOnlyUnique();
+        boolean filterReads = parameters.getFilterReads();
+        boolean speciesSpecific = parameters.getSpeciesSpecific();
+        int firstSAMIndex = parameters.getFirstSAMIdx();
+        
+        // read divergent site list
+        String pathSites = args[firstSAMIndex];
+        DivergentSiteSet sites = new DivergentSiteSet(new File(pathSites));
+        firstSAMIndex++;
+        
+        // read barcodes
+        String pathBarcode = args[firstSAMIndex];
+        HashSet<String> barcodes;
+        if(pathBarcode.equals("-"))
+            barcodes = null;
+        else{
+            barcodes = new HashSet<>();
+            try(java.io.RandomAccessFile rd = new java.io.RandomAccessFile(new File(pathBarcode), "r")){
+                String line;
+                while((line = rd.readLine()) != null)
+                    barcodes.add(line);
+            } catch(java.io.IOException e){
+                System.err.println("IO error. Cannot open the barcode file: " + pathBarcode);
+                System.err.println(e);
+                System.exit(1);
+            }
+        }
+        firstSAMIndex++;
+        
+        String pathMapping = args[firstSAMIndex];
+        File mappingFile = new File(pathMapping);
+
+        // demultiplex
+        Demultiplexor dm = new Demultiplexor(mappingFile, sites, barcodes, onlyUnique, filterReads);
+        HashMap<String, double[]> results = dm.demultiplex(speciesSpecific);
+        System.out.println(Demultiplexor.output(results, null));
+    }
+
     
     /**
      * The main function for command line running
@@ -625,6 +690,9 @@ public class HiTSeq {
         }
         else if(cmd.equalsIgnoreCase("correct")){
             runProperCorrect(args);
+        }
+        else if(cmd.equalsIgnoreCase("demultiplex")){
+            runDemultiplex(args);
         }
         
         else if(cmd.equalsIgnoreCase("test")){ // a command for test only
@@ -663,6 +731,8 @@ public class HiTSeq {
         private int lengthCutoff;
         private double countCutoff;
         private boolean onlyExclusive;
+        private boolean filterReads;
+        private boolean speciesSpecific;
         
         ParameterSet(String cmd){
             firstSAMIndex=1;
@@ -698,6 +768,10 @@ public class HiTSeq {
                 numIntervals = 100;
                 lengthCutoff = 0;
                 countCutoff = 0;
+            } else if(cmd.equalsIgnoreCase("demultiplex")){
+                onlyUnique = false;
+                filterReads = false;
+                speciesSpecific = false;
             }
         }
         
@@ -763,6 +837,14 @@ public class HiTSeq {
         
         boolean getOnlyExclusive(){
             return onlyExclusive;
+        }
+        
+        boolean getFilterReads(){
+            return filterReads;
+        }
+        
+        boolean getSpeciesSpecific(){
+            return speciesSpecific;
         }
         
         void readCommandLineArgs(String[] args){
@@ -860,6 +942,12 @@ public class HiTSeq {
                                         System.exit(0);
                                     }
                                 }
+                                break;
+                            case "x":
+                                speciesSpecific = true;
+                                break;
+                            case "f":
+                                filterReads = true;
                                 break;
                             case "e":
                                 if(cmd.equalsIgnoreCase("bias")){
