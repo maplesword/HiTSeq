@@ -16,19 +16,23 @@ Several commands are included in HiTSeq, each of which is designed for different
 		<td><strong>Command</strong></td>
 		<td><strong>Description</strong></td>
 	<tr>
-		<td><strong>info</strong></td>
-		<td>Extract mapping information of high-throughput sequencing data, including the number of reads, mapped reads, uniquely mapped reads, and reads with different distance to reference.</td>
-	</tr>
-         
+		<td><strong>count/rpkm</strong></td>
+		<td>Given genome features (e.g. gene annotation, peak intervals), count reads which are overlapping with each feature, followed by normalization using RPKM if necessary.</td>
 	<tr>
-		<td><strong>uniq</strong></td>
-		<td>Extract uniquely mapped reads of high-throughput sequencing data.</td>
-	</tr>
-
+		<td><strong>bias</strong></td>
+		<td>Given genome features (e.g. gene annotation, peak intervals), count reads covering each percentile of genes from 5'-end to 3'-end, to estimate degree of 3'-bias in the data as a proxy of RNA quality.</td>
+	<tr>
+		<td><strong>demultiplex</strong></td>
+		<td>Given a list of sites with varied bases in different species/groups, scan for unique UMIs covering the sites and assign them to the species. Useful when cells/nuclei from close species (human and chimp) are pooled for single cell RNA-seq.</td>
 	<tr>
 		<td><strong>count/rpkm</strong></td>
 		<td>Given genome features (e.g. gene annotation, peak intervals), count reads which are overlapping with each feature, followed by normalization using RPKM if necessary.</td>
-	</tr>
+	<tr>
+		<td><strong>info (deprecated)</strong></td>
+		<td>Extract mapping information of high-throughput sequencing data, including the number of reads, mapped reads, uniquely mapped reads, and reads with different distance to reference.</td>
+	<tr>
+		<td><strong>uniq (deprecated)</strong></td>
+		<td>Extract uniquely mapped reads of high-throughput sequencing data.</td>
 </table>             
 
 
@@ -44,7 +48,7 @@ Several commands are included in HiTSeq, each of which is designed for different
 
 ### Version ###
 
-0.1
+0.2
 
 
 
